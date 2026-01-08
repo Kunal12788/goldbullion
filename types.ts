@@ -16,6 +16,7 @@ export interface Invoice {
   // Specific to Sales (Calculated via FIFO)
   cogs?: number; // Cost of Goods Sold
   profit?: number; // Total Amount (Excl GST) - COGS
+  fifoLog?: string[]; // Audit trail of which batches were consumed
 }
 
 export interface InventoryBatch {
