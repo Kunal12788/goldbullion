@@ -7,24 +7,21 @@ import InvoiceForm from './components/InvoiceForm';
 import InventoryTable from './components/InventoryTable';
 import StatsCard from './components/StatsCard';
 import { DateRangePicker } from './components/DateRangePicker'; 
-import { SingleDatePicker } from './components/SingleDatePicker';
 import Toast, { ToastMessage } from './components/Toast'; 
 import { Invoice, InventoryBatch, CustomerStat, AgingStats, SupplierStat, RiskAlert } from './types';
-import { loadInvoices, loadInventory, saveInvoices, saveInventory, resetData } from './services/storeService';
-import { supabase, saveOrderToSupabase } from './services/supabase';
-import { formatCurrency, formatGrams, calculateInventoryValueOnDate, getDateDaysAgo, calculateStockAging, calculateSupplierStats, calculateTurnoverStats, generateId, downloadCSV } from './utils';
+import { loadInvoices, resetData } from './services/storeService'; // Kept ONLY for migration
+import { supabase, saveOrderToSupabase, fetchOrders, deleteOrderFromSupabase, bulkInsertOrders } from './services/supabase';
+import { formatCurrency, formatGrams, getDateDaysAgo, calculateStockAging, calculateSupplierStats, calculateTurnoverStats, generateId, downloadCSV } from './utils';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { 
-  ArrowUpRight, ArrowDownLeft, Scale, Coins, Trash2, TrendingUp, AlertTriangle, 
-  History, Percent, Award, Calendar, FileSpreadsheet, FileText, Info,
-  AlertOctagon, BadgeAlert, TrendingDown, Hourglass, Factory, Lock, Search, Filter,
-  ArrowRightLeft, LineChart, CandlestickChart, Download, Users, ChevronRight, Crown, Briefcase, ChevronUp, ChevronDown,
-  Timer, PieChart as PieIcon, BarChart3, Activity, Wallet, FileDown
+  ArrowUpRight, Scale, Coins, Trash2, TrendingUp, AlertTriangle, 
+  FileSpreadsheet, FileText, Factory, Lock, ArrowRightLeft, LineChart, 
+  Download, Users, ChevronRight, Crown, Briefcase, 
+  Timer, Activity, Wallet, FileDown, CheckCircle
 } from 'lucide-react';
 import { 
-  BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  LineChart as ReLineChart, Line, AreaChart, Area, ComposedChart, PieChart, Pie
+  AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from 'recharts';
 
 // --- Shared UI Components ---
@@ -84,7 +81,6 @@ function App() {
       end: new Date().toISOString().split('T')[0]
   });
   const [lockDate, setLockDate] = useState<string | null>(localStorage.getItem('bullion_lock_date') || null);
-  const [showLockSettings, setShowLockSettings] = useState(false);
 
   // Authentication Check
   useEffect(() => {
@@ -92,31 +88,12 @@ function App() {
       setSession(session);
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
 
     return () => subscription.unsubscribe();
   }, []);
-
-  // Load Data
-  useEffect(() => {
-    setInvoices(loadInvoices());
-    setInventory(loadInventory());
-  }, []);
-
-  // Save Data
-  useEffect(() => {
-    saveInvoices(invoices);
-    saveInventory(inventory);
-  }, [invoices, inventory]);
-
-  useEffect(() => {
-      if(lockDate) localStorage.setItem('bullion_lock_date', lockDate);
-      else localStorage.removeItem('bullion_lock_date');
-  }, [lockDate]);
 
   const addToast = (type: 'SUCCESS' | 'ERROR', message: string) => {
       const id = generateId();
@@ -125,6 +102,114 @@ function App() {
   const removeToast = (id: string) => {
       setToasts(prev => prev.filter(t => t.id !== id));
   };
+
+  const renderDateFilter = () => (
+      <div className="w-full sm:w-auto">
+          <DateRangePicker 
+              startDate={dateRange.start} 
+              endDate={dateRange.end} 
+              onChange={(start, end) => setDateRange({ start, end })} 
+          />
+      </div>
+  );
+
+  // --- CORE LOGIC: Recalculate State from Transactions ---
+  // This ensures that FIFO logic is consistent regardless of where data comes from (Local or Cloud)
+  const recalculateAllData = (allInvoices: Invoice[]) => {
+    const sorted = [...allInvoices].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    let currentInventory: InventoryBatch[] = [];
+    const processedInvoices: Invoice[] = [];
+
+    for (const inv of sorted) {
+        if (inv.type === 'PURCHASE') {
+            const newBatch: InventoryBatch = {
+                id: inv.id,
+                date: inv.date,
+                originalQuantity: inv.quantityGrams,
+                remainingQuantity: inv.quantityGrams,
+                costPerGram: inv.ratePerGram
+            };
+            currentInventory.push(newBatch);
+            processedInvoices.push(inv);
+        } else {
+            // SALE Logic
+            let remainingToSell = inv.quantityGrams;
+            let totalCOGS = 0;
+            
+            for (const batch of currentInventory) {
+                if (remainingToSell <= 0) break;
+                if (batch.remainingQuantity > 0) {
+                    const take = Math.min(batch.remainingQuantity, remainingToSell);
+                    batch.remainingQuantity -= take;
+                    remainingToSell -= take;
+                    totalCOGS += (take * batch.costPerGram);
+                    
+                    if (batch.remainingQuantity < 0.0001) {
+                         batch.remainingQuantity = 0;
+                         batch.closedDate = inv.date;
+                    }
+                }
+            }
+            const profit = (inv.taxableAmount || (inv.quantityGrams * inv.ratePerGram)) - totalCOGS;
+            processedInvoices.push({ ...inv, cogs: totalCOGS, profit });
+        }
+    }
+    
+    return {
+        updatedInvoices: processedInvoices,
+        updatedInventory: currentInventory
+    };
+  };
+
+  // --- DATA LOADING & SYNC ---
+  useEffect(() => {
+    if (!session) return;
+
+    const initData = async () => {
+        try {
+            // 1. Fetch Cloud Data
+            const cloudOrders = await fetchOrders();
+            
+            // 2. Fetch Local Data (for migration only)
+            const localOrders = loadInvoices(); 
+
+            let finalOrders = [];
+
+            // MIGRATION LOGIC: If Cloud is empty but Local has data, upload Local to Cloud
+            if (cloudOrders.length === 0 && localOrders.length > 0) {
+                addToast('SUCCESS', 'Migrating your local data to cloud...');
+                const success = await bulkInsertOrders(localOrders);
+                if (success) {
+                    finalOrders = localOrders;
+                    addToast('SUCCESS', 'Migration Complete! Your data is now safe in the cloud.');
+                } else {
+                    addToast('ERROR', 'Migration failed. Please check internet.');
+                    finalOrders = localOrders; // Fallback to local
+                }
+            } else {
+                // Normal Operation: Cloud is source of truth
+                finalOrders = cloudOrders;
+            }
+
+            // 3. Reconstruct State (FIFO)
+            const { updatedInvoices, updatedInventory } = recalculateAllData(finalOrders);
+            
+            setInvoices(updatedInvoices.reverse()); // UI expects newest first
+            setInventory(updatedInventory);
+
+        } catch (e) {
+            console.error(e);
+            addToast('ERROR', 'Failed to load data from server.');
+        }
+    };
+
+    initData();
+  }, [session]);
+
+  useEffect(() => {
+      if(lockDate) localStorage.setItem('bullion_lock_date', lockDate);
+      else localStorage.removeItem('bullion_lock_date');
+  }, [lockDate]);
 
   const handleLogout = async () => {
       await supabase.auth.signOut();
@@ -164,11 +249,10 @@ function App() {
 
   const currentStock = useMemo(() => searchFilteredInventory.reduce((acc, batch) => acc + batch.remainingQuantity, 0), [searchFilteredInventory]);
   const fifoValue = useMemo(() => searchFilteredInventory.reduce((acc, batch) => acc + (batch.remainingQuantity * batch.costPerGram), 0), [searchFilteredInventory]);
-  const weightedAvgCost = currentStock > 0 ? fifoValue / currentStock : 0;
 
   const agingStats: AgingStats = useMemo(() => calculateStockAging(searchFilteredInventory), [searchFilteredInventory]);
 
-  const { customerData, totalProfit, profitMargin, profitTrendData, dailyProfit } = useMemo(() => {
+  const { customerData, totalProfit, profitTrendData, dailyProfit } = useMemo(() => {
       const customerStats: Record<string, CustomerStat & { avgQtyPerTx?: number, avgSellingPrice?: number, behaviorPattern?: string }> = {};
       let totalRevenueExTax = 0;
       let totalProfitCalc = 0;
@@ -183,7 +267,6 @@ function App() {
 
           if (inv.type === 'SALE') {
               customerStats[inv.partyName].totalGrams += inv.quantityGrams;
-              // Using taxableAmount (Ex-GST) for total spend analysis as requested
               customerStats[inv.partyName].totalSpend += inv.taxableAmount; 
               customerStats[inv.partyName].profitContribution += (inv.profit || 0);
 
@@ -260,74 +343,25 @@ function App() {
     return list;
   }, [agingStats, invoices]);
 
-  // Recalculates entire inventory from scratch based on a list of invoices
-  // This ensures FIFO integrity is maintained even after deleting a historical transaction
-  const recalculateAllData = (allInvoices: Invoice[]) => {
-    // Sort by date ascending for correct FIFO processing
-    const sorted = [...allInvoices].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    let currentInventory: InventoryBatch[] = [];
-    const processedInvoices: Invoice[] = [];
-
-    for (const inv of sorted) {
-        if (inv.type === 'PURCHASE') {
-            const newBatch: InventoryBatch = {
-                id: inv.id,
-                date: inv.date,
-                originalQuantity: inv.quantityGrams,
-                remainingQuantity: inv.quantityGrams,
-                costPerGram: inv.ratePerGram
-            };
-            currentInventory.push(newBatch);
-            processedInvoices.push(inv);
-        } else {
-            // SALE Logic
-            let remainingToSell = inv.quantityGrams;
-            let totalCOGS = 0;
-            
-            for (const batch of currentInventory) {
-                if (remainingToSell <= 0) break;
-                if (batch.remainingQuantity > 0) {
-                    const take = Math.min(batch.remainingQuantity, remainingToSell);
-                    batch.remainingQuantity -= take;
-                    remainingToSell -= take;
-                    totalCOGS += (take * batch.costPerGram);
-                    
-                    if (batch.remainingQuantity < 0.0001) {
-                         batch.remainingQuantity = 0;
-                         batch.closedDate = inv.date;
-                    }
-                }
-            }
-            
-            // If remainingToSell > 0 here, it means we sold stock we didn't have (FIFO broke).
-            // In a strict system we block this, but for recalculation we proceed with best effort.
-            
-            const profit = (inv.taxableAmount || (inv.quantityGrams * inv.ratePerGram)) - totalCOGS;
-            processedInvoices.push({ ...inv, cogs: totalCOGS, profit });
-        }
-    }
-    
-    return {
-        updatedInvoices: processedInvoices,
-        updatedInventory: currentInventory
-    };
-  };
-
   const initiateDelete = (id: string) => {
       setDeleteId(id);
       setDeletePassword('');
       setShowDeleteModal(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
       if (deletePassword === 'QAZ@789') {
           if (deleteId) {
-              const remainingInvoices = invoices.filter(i => i.id !== deleteId);
-              const { updatedInvoices, updatedInventory } = recalculateAllData(remainingInvoices);
-              
-              setInvoices(updatedInvoices);
-              setInventory(updatedInventory);
-              addToast('SUCCESS', 'Record deleted and data recalculated.');
+              const success = await deleteOrderFromSupabase(deleteId);
+              if (success) {
+                  const remainingInvoices = invoices.filter(i => i.id !== deleteId);
+                  const { updatedInvoices, updatedInventory } = recalculateAllData(remainingInvoices);
+                  setInvoices(updatedInvoices);
+                  setInventory(updatedInventory);
+                  addToast('SUCCESS', 'Record deleted and data recalculated.');
+              } else {
+                  addToast('ERROR', 'Failed to delete from server.');
+              }
           }
           setShowDeleteModal(false);
           setDeleteId(null);
@@ -337,64 +371,24 @@ function App() {
       }
   };
 
-  const handleAddInvoice = (invoice: Invoice) => {
-    if (invoice.type === 'PURCHASE') {
-        setInvoices(prev => [invoice, ...prev]); 
-        const newBatch: InventoryBatch = { id: invoice.id, date: invoice.date, originalQuantity: invoice.quantityGrams, remainingQuantity: invoice.quantityGrams, costPerGram: invoice.ratePerGram };
-        setInventory(prev => [...prev, newBatch].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
-        addToast('SUCCESS', 'Purchase recorded & Inventory Updated');
-        
-        // Sync to Supabase
-        saveOrderToSupabase(invoice).then(success => {
-            if(!success) console.warn("Failed to sync purchase to Supabase");
-        });
-
+  const handleAddInvoice = async (invoice: Invoice) => {
+    // 1. Optimistic Update (Immediate UI feedback)
+    const newInvoicesList = [invoice, ...invoices];
+    // Note: We need to sort descending by date for the raw list before recalc, but recalc expects ascending
+    // Actually, simpler to just add to list, sort by date ascending, recalc, then reverse for UI.
+    const { updatedInvoices, updatedInventory } = recalculateAllData(newInvoicesList);
+    
+    setInvoices(updatedInvoices.reverse());
+    setInventory(updatedInventory);
+    
+    // 2. Persist to Cloud
+    const success = await saveOrderToSupabase(invoice);
+    
+    if (success) {
+        addToast('SUCCESS', `${invoice.type === 'PURCHASE' ? 'Purchase' : 'Sale'} Saved to Cloud.`);
     } else {
-        // Optimization: For adding a new sale (latest date usually), we can just do incremental update
-        // instead of full recalc. However, if user adds a back-dated sale, full recalc is safer.
-        // For now, keeping the optimized incremental logic for standard usage, but if date is older than latest invoice, we should recalc.
-        
-        const latestInvoiceDate = invoices.length > 0 ? invoices[0].date : '';
-        if (latestInvoiceDate && invoice.date < latestInvoiceDate) {
-             // Back-dated transaction: Use full recalculation
-             const newInvoices = [...invoices, invoice];
-             const { updatedInvoices, updatedInventory } = recalculateAllData(newInvoices);
-             setInvoices(updatedInvoices.reverse()); // Store descending
-             setInventory(updatedInventory);
-             addToast('SUCCESS', 'Back-dated Sale recorded. History Recalculated.');
-             return;
-        }
-
-        let remainingToSell = invoice.quantityGrams;
-        let totalCOGS = 0;
-        const newInventory = JSON.parse(JSON.stringify(inventory)) as InventoryBatch[];
-
-        for (const batch of newInventory) {
-            if (remainingToSell <= 0) break;
-            if (batch.remainingQuantity > 0) {
-                const take = Math.min(batch.remainingQuantity, remainingToSell);
-                batch.totalRevenue = (batch.totalRevenue || 0) + (take * invoice.ratePerGram);
-                batch.remainingQuantity -= take;
-                remainingToSell -= take;
-                totalCOGS += (take * batch.costPerGram);
-                if (batch.remainingQuantity < 0.0001) { 
-                    batch.remainingQuantity = 0;
-                    batch.closedDate = invoice.date;
-                }
-            }
-        }
-        if (remainingToSell > 0.001) { addToast('ERROR', "FIFO Mismatch - Check Stock"); return; }
-        const profit = (invoice.quantityGrams * invoice.ratePerGram) - totalCOGS;
-        const finalInvoice = { ...invoice, cogs: totalCOGS, profit };
-        
-        setInvoices(prev => [finalInvoice, ...prev]);
-        setInventory(newInventory);
-        addToast('SUCCESS', 'Sale recorded. FIFO Logic Applied.');
-
-        // Sync to Supabase
-        saveOrderToSupabase(finalInvoice).then(success => {
-            if(!success) console.warn("Failed to sync sale to Supabase");
-        });
+        addToast('ERROR', 'Failed to save to cloud. Check connection.');
+        // Optional: Rollback state here if strict consistency needed
     }
   };
 
@@ -579,6 +573,183 @@ function App() {
   };
 
   // --- SUB-VIEWS ---
+
+  const DashboardView = () => {
+       const qtySoldPeriod = filteredInvoices.filter(i => i.type === 'SALE').reduce((acc, i) => acc + i.quantityGrams, 0);
+       
+       return (
+            <div className="space-y-6 animate-enter">
+                <SectionHeader 
+                    title="Dashboard" 
+                    subtitle="Overview of your inventory and performance."
+                    action={renderDateFilter()}
+                />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <StatsCard title="Current Stock" value={formatGrams(currentStock)} subValue={`${inventory.filter(b=>b.remainingQuantity>0).length} active batches`} icon={Coins} delayIndex={0} isActive />
+                    <StatsCard title="Inventory Value" value={formatCurrency(fifoValue)} subValue="FIFO Basis" icon={Briefcase} delayIndex={1} />
+                    <StatsCard title="Total Profit" value={formatCurrency(totalProfit)} subValue="Realized (Period)" icon={TrendingUp} delayIndex={2} />
+                     <StatsCard title="Avg. Aging" value={`${Math.round(agingStats.weightedAvgDays)} Days`} subValue="Stock Age" icon={Timer} delayIndex={3} />
+                </div>
+    
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                     <div className="lg:col-span-2 space-y-6">
+                          <Card title="Business Health & Alerts" delay={4}>
+                               {alerts.length === 0 ? (
+                                   <div className="flex flex-col items-center justify-center h-40 text-slate-400">
+                                       <CheckCircle className="w-8 h-8 mb-2 text-green-500" />
+                                       <p>All systems healthy. No risk alerts.</p>
+                                   </div>
+                               ) : (
+                                   <div className="space-y-3">
+                                       {alerts.map(alert => (
+                                           <div key={alert.id} className={`flex items-start gap-4 p-4 rounded-xl border ${alert.severity === 'HIGH' ? 'bg-red-50 border-red-100 text-red-800' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
+                                               <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                                               <div>
+                                                   <p className="font-bold text-sm uppercase tracking-wide mb-1">{alert.context}</p>
+                                                   <p className="text-sm font-medium">{alert.message}</p>
+                                               </div>
+                                           </div>
+                                       ))}
+                                   </div>
+                               )}
+                          </Card>
+                          
+                          <Card title="Recent Activity" delay={5}>
+                               <div className="space-y-3">
+                                   {invoices.slice(0, 5).map(inv => (
+                                       <div key={inv.id} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors border border-slate-50">
+                                           <div className="flex items-center gap-3">
+                                               <div className={`p-2 rounded-lg ${inv.type === 'PURCHASE' ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'}`}>
+                                                   {inv.type === 'PURCHASE' ? <ArrowRightLeft className="w-4 h-4"/> : <Coins className="w-4 h-4"/>}
+                                               </div>
+                                               <div>
+                                                   <p className="font-bold text-slate-900 text-sm">{inv.partyName}</p>
+                                                   <p className="text-xs text-slate-500">{new Date(inv.date).toLocaleDateString()}</p>
+                                               </div>
+                                           </div>
+                                           <div className="text-right">
+                                               <p className="font-mono font-bold text-sm">{formatGrams(inv.quantityGrams)}</p>
+                                               <p className="text-xs text-slate-500">{formatCurrency(inv.totalAmount)}</p>
+                                           </div>
+                                       </div>
+                                   ))}
+                               </div>
+                          </Card>
+                     </div>
+                     
+                     <div className="space-y-6">
+                          <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-xl flex flex-col items-center text-center justify-center min-h-[200px] relative overflow-hidden">
+                               <div className="absolute inset-0 bg-gradient-to-br from-gold-500/10 to-transparent"></div>
+                               <h3 className="relative z-10 text-3xl font-mono font-bold mb-1 text-gold-400">{formatGrams(qtySoldPeriod)}</h3>
+                               <p className="relative z-10 text-slate-400 text-xs font-bold uppercase tracking-widest">Volume Sold (Period)</p>
+                          </div>
+                          <Card title="Stock Aging" delay={6}>
+                               <div className="space-y-4">
+                                   {Object.entries(agingStats.buckets).map(([range, qty]) => (
+                                       <div key={range}>
+                                           <div className="flex justify-between text-xs mb-1">
+                                               <span className="font-bold text-slate-500">{range} Days</span>
+                                               <span className="font-mono text-slate-700">{formatGrams(qty)}</span>
+                                           </div>
+                                           <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                               <div 
+                                                 className={`h-full rounded-full ${range === '30+' ? 'bg-red-500' : 'bg-gold-500'}`} 
+                                                 style={{ width: `${currentStock > 0 ? (qty / currentStock) * 100 : 0}%` }}
+                                               ></div>
+                                           </div>
+                                       </div>
+                                   ))}
+                               </div>
+                          </Card>
+                     </div>
+                </div>
+            </div>
+       );
+  };
+  
+  const CustomerInsightsView = () => {
+        // Use customerData from parent scope
+        return (
+            <div className="space-y-8 animate-enter">
+                 <SectionHeader 
+                    title="Customer Intelligence" 
+                    subtitle="Analyze purchasing patterns and profitability." 
+                    action={
+                        <div className="flex gap-2 items-center">
+                            <ExportMenu onExport={handleCustomerExport} />
+                            {renderDateFilter()}
+                        </div>
+                    } 
+                 />
+                 
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                     {customerData.slice(0, 3).map((c, i) => (
+                         <div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-card flex flex-col gap-4 relative overflow-hidden group hover:shadow-lg transition-all">
+                             <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-purple-500/10 to-transparent rounded-full -mr-8 -mt-8 group-hover:scale-110 transition-transform"></div>
+                             <div className="flex justify-between items-start z-10">
+                                 <div>
+                                     <h3 className="font-bold text-lg text-slate-900 truncate max-w-[150px]">{c.name}</h3>
+                                     <p className="text-xs text-purple-600 font-bold bg-purple-50 px-2 py-1 rounded-md inline-block mt-1">{c.behaviorPattern}</p>
+                                 </div>
+                                 <div className="p-2 bg-slate-50 rounded-lg text-slate-400"><Users className="w-5 h-5"/></div>
+                             </div>
+                             <div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4 z-10">
+                                 <div>
+                                     <p className="text-[10px] uppercase text-slate-400 font-bold">Total Grams</p>
+                                     <p className="font-mono font-bold text-slate-700">{formatGrams(c.totalGrams)}</p>
+                                 </div>
+                                 <div>
+                                     <p className="text-[10px] uppercase text-slate-400 font-bold">Total Revenue</p>
+                                     <p className="font-mono font-bold text-slate-700">{formatCurrency(c.totalSpend)}</p>
+                                 </div>
+                                 <div>
+                                     <p className="text-[10px] uppercase text-slate-400 font-bold">Tx Count</p>
+                                     <p className="font-mono font-bold text-slate-700">{c.txCount}</p>
+                                 </div>
+                                 <div>
+                                     <p className="text-[10px] uppercase text-slate-400 font-bold">Avg Price/g</p>
+                                     <p className="font-mono font-bold text-slate-700">{formatCurrency(c.avgSellingPrice || 0)}</p>
+                                 </div>
+                             </div>
+                         </div>
+                     ))}
+                 </div>
+                 
+                 <Card title="Detailed Customer Ledger">
+                      <div className="overflow-x-auto">
+                      <table className="w-full text-sm text-left">
+                          <thead className="text-slate-500 bg-slate-50/50">
+                              <tr>
+                                  <th className="px-4 py-3">Customer</th>
+                                  <th className="px-4 py-3 text-center">Frequency</th>
+                                  <th className="px-4 py-3 text-right">Volume (g)</th>
+                                  <th className="px-4 py-3 text-right">Revenue (Ex GST)</th>
+                                  <th className="px-4 py-3 text-right">Avg Price/g</th>
+                                  <th className="px-4 py-3 text-right">Profit Contribution</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              {customerData.map((c, i) => (
+                                  <tr key={i} className="hover:bg-slate-50 border-b border-slate-50">
+                                      <td className="px-4 py-3">
+                                          <p className="font-bold text-slate-800">{c.name}</p>
+                                          <p className="text-xs text-slate-500">{c.behaviorPattern}</p>
+                                      </td>
+                                      <td className="px-4 py-3 text-center text-slate-500">{c.txCount}</td>
+                                      <td className="px-4 py-3 text-right font-mono">{formatGrams(c.totalGrams)}</td>
+                                      <td className="px-4 py-3 text-right font-mono">{formatCurrency(c.totalSpend)}</td>
+                                      <td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(c.avgSellingPrice || 0)}</td>
+                                      <td className="px-4 py-3 text-right font-mono font-bold text-green-600">{formatCurrency(c.profitContribution)}</td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                      </table>
+                      </div>
+                 </Card>
+            </div>
+        );
+  };
 
   const PriceAnalysisView = () => {
       const priceMetrics = useMemo(() => {
@@ -766,7 +937,7 @@ function App() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <Card title="Profit Trajectory" className="lg:col-span-2" delay={300}>
+              <Card title="Profit Trend" className="lg:col-span-2" delay={300}>
                   <div className="h-64 md:h-80 w-full">
                       <ResponsiveContainer>
                           <AreaChart data={profitTrendData}>
@@ -1094,226 +1265,6 @@ function App() {
               </Card>
           </div>
       );
-  };
-
-  const renderDateFilter = () => (
-      <DateRangePicker startDate={dateRange.start} endDate={dateRange.end} onChange={(start, end) => setDateRange({ start, end })} />
-  );
-
-  // --- SUB-VIEWS ---
-
-  const DashboardView = () => {
-      // Calculate basic stats
-      const totalStock = currentStock; 
-      const stockValue = fifoValue; 
-      const recentProfit = dailyProfit.reduce((sum, d) => sum + d.profit, 0);
-
-      return (
-          <div className="space-y-6 animate-enter">
-              <SectionHeader 
-                  title="Dashboard" 
-                  subtitle="Overview of your inventory and financial health." 
-                  action={renderDateFilter()}
-              />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <StatsCard 
-                      title="Current Stock" 
-                      value={formatGrams(totalStock)} 
-                      subValue={`${inventory.length} Batches`} 
-                      icon={Coins} 
-                      isActive
-                  />
-                  <StatsCard 
-                      title="Inventory Value" 
-                      value={formatCurrency(stockValue)} 
-                      subValue="FIFO Basis" 
-                      icon={Scale} 
-                      delayIndex={1}
-                  />
-                  <StatsCard 
-                      title="Net Profit" 
-                      value={formatCurrency(recentProfit)} 
-                      subValue="Selected Period" 
-                      icon={TrendingUp} 
-                      delayIndex={2}
-                  />
-                  <StatsCard 
-                      title="Transactions" 
-                      value={filteredInvoices.length.toString()} 
-                      subValue={`${filteredInvoices.filter(i => i.type === 'SALE').length} Sales`} 
-                      icon={ArrowRightLeft} 
-                      delayIndex={3}
-                  />
-              </div>
-
-              {alerts.length > 0 && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {alerts.map((alert, idx) => (
-                          <div key={idx} className={`p-4 rounded-xl border flex items-start gap-4 ${alert.severity === 'HIGH' ? 'bg-red-50 border-red-100 text-red-800' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
-                              <div className={`p-2 rounded-lg ${alert.severity === 'HIGH' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>
-                                  <AlertTriangle className="w-5 h-5" />
-                              </div>
-                              <div>
-                                  <h4 className="font-bold text-sm uppercase tracking-wide mb-1">{alert.context}: {alert.severity} Risk</h4>
-                                  <p className="text-sm">{alert.message}</p>
-                              </div>
-                          </div>
-                      ))}
-                  </div>
-              )}
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  <Card title="Profit Trend" className="lg:col-span-2 min-h-[350px]">
-                        <div className="h-[300px] w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={profitTrendData}>
-                                    <defs>
-                                        <linearGradient id="colorProfitDb" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
-                                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}}/>
-                                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} tickFormatter={(v) => `${v/1000}k`}/>
-                                    <Tooltip 
-                                        contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}} 
-                                        formatter={(value: number) => [formatCurrency(value), 'Net Profit']}
-                                    />
-                                    <Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfitDb)" />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
-                  </Card>
-
-                  <Card title="Quick Actions" className="lg:col-span-1">
-                      <div className="space-y-3">
-                          <button onClick={() => setActiveTab('invoices')} className="w-full p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-gold-200 hover:shadow-md transition-all flex items-center gap-3 text-left group">
-                              <div className="p-3 bg-white rounded-lg shadow-sm group-hover:bg-gold-50 text-gold-600 transition-colors"><FileText className="w-5 h-5"/></div>
-                              <div>
-                                  <h4 className="font-bold text-slate-900">New Invoice</h4>
-                                  <p className="text-xs text-slate-500">Record purchase or sale</p>
-                              </div>
-                              <ChevronRight className="w-4 h-4 ml-auto text-slate-300 group-hover:text-gold-500"/>
-                          </button>
-                          <button onClick={() => setActiveTab('inventory')} className="w-full p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-blue-200 hover:shadow-md transition-all flex items-center gap-3 text-left group">
-                              <div className="p-3 bg-white rounded-lg shadow-sm group-hover:bg-blue-50 text-blue-600 transition-colors"><ArrowUpRight className="w-5 h-5"/></div>
-                              <div>
-                                  <h4 className="font-bold text-slate-900">Check Stock</h4>
-                                  <p className="text-xs text-slate-500">View inventory batches</p>
-                              </div>
-                              <ChevronRight className="w-4 h-4 ml-auto text-slate-300 group-hover:text-blue-500"/>
-                          </button>
-                          <button onClick={() => window.print()} className="w-full p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-slate-300 hover:shadow-md transition-all flex items-center gap-3 text-left group">
-                              <div className="p-3 bg-white rounded-lg shadow-sm group-hover:bg-slate-100 text-slate-600 transition-colors"><FileDown className="w-5 h-5"/></div>
-                              <div>
-                                  <h4 className="font-bold text-slate-900">Print Report</h4>
-                                  <p className="text-xs text-slate-500">Export current view</p>
-                              </div>
-                              <ChevronRight className="w-4 h-4 ml-auto text-slate-300 group-hover:text-slate-500"/>
-                          </button>
-                      </div>
-                  </Card>
-              </div>
-          </div>
-      );
-  };
-
-  const CustomerInsightsView = () => {
-       const COLORS = ['#d19726', '#e4c76d', '#b4761e', '#f5eccb', '#90561a', '#94a3b8'];
-       const pieData = customerData.slice(0, 5).map(c => ({ name: c.name, value: c.totalGrams }));
-       const others = customerData.slice(5).reduce((acc, c) => acc + c.totalGrams, 0);
-       if (others > 0) pieData.push({ name: 'Others', value: others });
-
-       return (
-           <div className="space-y-6 animate-enter">
-                <SectionHeader 
-                    title="Customer Intelligence" 
-                    subtitle="Analyze customer behavior and profitability." 
-                    action={
-                        <div className="flex gap-2 items-center">
-                            <ExportMenu onExport={handleCustomerExport} />
-                            {renderDateFilter()}
-                        </div>
-                    }
-                />
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {customerData.slice(0, 3).map((c, i) => (
-                        <div key={i} className="bg-white p-6 rounded-2xl shadow-card border border-slate-100 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
-                             <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-slate-50 to-slate-100 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-                             <div className="relative z-10 flex justify-between items-start mb-4">
-                                 <div>
-                                     <div className="flex items-center gap-2 mb-1">
-                                        <h3 className="font-bold text-lg text-slate-900 truncate max-w-[150px]">{c.name}</h3>
-                                        {i === 0 && <Crown className="w-4 h-4 text-gold-500 fill-gold-500" />}
-                                     </div>
-                                     <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase tracking-wide">{c.behaviorPattern.split('(')[0]}</span>
-                                 </div>
-                                 <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold shadow-lg">
-                                     #{i+1}
-                                 </div>
-                             </div>
-                             <div className="relative z-10 space-y-2">
-                                 <div className="flex justify-between text-sm"><span className="text-slate-500">Total Bought</span><span className="font-mono font-bold">{formatGrams(c.totalGrams)}</span></div>
-                                 <div className="flex justify-between text-sm"><span className="text-slate-500">Revenue</span><span className="font-mono font-bold text-slate-700">{formatCurrency(c.totalSpend)}</span></div>
-                                 <div className="flex justify-between text-sm"><span className="text-slate-500">Profit Contrib.</span><span className="font-mono font-bold text-green-600">{formatCurrency(c.profitContribution)}</span></div>
-                             </div>
-                        </div>
-                    ))}
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                     <Card title="Customer Database" className="lg:col-span-2">
-                          <div className="overflow-x-auto">
-                              <table className="w-full text-sm text-left">
-                                  <thead className="text-slate-500 bg-slate-50/50">
-                                      <tr>
-                                          <th className="px-4 py-3">Customer</th>
-                                          <th className="px-4 py-3 text-center">Tx Freq</th>
-                                          <th className="px-4 py-3 text-right">Volume</th>
-                                          <th className="px-4 py-3 text-right">Avg Price</th>
-                                          <th className="px-4 py-3 text-right">Margin</th>
-                                          <th className="px-4 py-3 text-right">Total Profit</th>
-                                      </tr>
-                                  </thead>
-                                  <tbody>
-                                      {customerData.map((c, i) => (
-                                          <tr key={i} className="hover:bg-slate-50 border-b border-slate-50">
-                                              <td className="px-4 py-3 font-medium text-slate-900">{c.name}</td>
-                                              <td className="px-4 py-3 text-center text-slate-500">{c.txCount}</td>
-                                              <td className="px-4 py-3 text-right font-mono text-slate-600">{formatGrams(c.totalGrams)}</td>
-                                              <td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(c.avgSellingPrice || 0)}</td>
-                                              <td className="px-4 py-3 text-right">
-                                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${c.margin && c.margin > 1.5 ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
-                                                      {c.margin ? c.margin.toFixed(2) : '0.00'}%
-                                                  </span>
-                                              </td>
-                                              <td className="px-4 py-3 text-right font-mono font-bold text-green-600">{formatCurrency(c.profitContribution)}</td>
-                                          </tr>
-                                      ))}
-                                  </tbody>
-                              </table>
-                          </div>
-                     </Card>
-
-                     <Card title="Volume Share" className="min-h-[350px]">
-                         <ResponsiveContainer width="100%" height={300}>
-                             <PieChart>
-                                 <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                                     {pieData.map((entry, index) => (
-                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                     ))}
-                                 </Pie>
-                                 <Tooltip formatter={(val:number) => formatGrams(val)} contentStyle={{borderRadius: '8px'}} />
-                                 <Legend verticalAlign="bottom" height={36}/>
-                             </PieChart>
-                         </ResponsiveContainer>
-                     </Card>
-                </div>
-           </div>
-       );
   };
 
   if (!session) {

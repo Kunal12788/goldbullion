@@ -9,32 +9,72 @@ const SUPABASE_KEY = 'sb_publishable_GFjJT0VabZ-DFCmPUurA9A_np_ijLwh';
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 /**
+ * Maps Supabase DB row (snake_case) to Invoice object (camelCase)
+ */
+const mapOrderFromDB = (o: any): Invoice => ({
+  id: o.id,
+  date: o.date,
+  type: o.type,
+  partyName: o.party_name,
+  quantityGrams: Number(o.quantity_grams),
+  ratePerGram: Number(o.rate_per_gram),
+  gstRate: Number(o.gst_rate),
+  gstAmount: Number(o.gst_amount),
+  taxableAmount: Number(o.taxable_amount),
+  totalAmount: Number(o.total_amount),
+  cogs: Number(o.cogs || 0),
+  profit: Number(o.profit || 0)
+});
+
+/**
+ * Maps Invoice object (camelCase) to Supabase DB row (snake_case)
+ */
+const mapOrderToDB = (invoice: Invoice, userId?: string) => ({
+  id: invoice.id,
+  date: invoice.date,
+  type: invoice.type,
+  party_name: invoice.partyName,
+  quantity_grams: invoice.quantityGrams,
+  rate_per_gram: invoice.ratePerGram,
+  gst_rate: invoice.gstRate,
+  gst_amount: invoice.gstAmount,
+  taxable_amount: invoice.taxableAmount,
+  total_amount: invoice.totalAmount,
+  cogs: invoice.cogs || 0,
+  profit: invoice.profit || 0,
+  updated_at: new Date().toISOString()
+});
+
+/**
+ * Fetches all orders for the logged-in user.
+ */
+export const fetchOrders = async (): Promise<Invoice[]> => {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .order('date', { ascending: true }); // Important for FIFO reconstruction
+
+  if (error) {
+    console.error('Error fetching orders:', error);
+    return [];
+  }
+
+  return data.map(mapOrderFromDB);
+};
+
+/**
  * Saves a single order (invoice) to the 'orders' table in Supabase.
  */
 export const saveOrderToSupabase = async (invoice: Invoice) => {
-  const orderPayload = {
-    id: invoice.id,
-    date: invoice.date,
-    type: invoice.type,
-    party_name: invoice.partyName,
-    quantity_grams: invoice.quantityGrams,
-    rate_per_gram: invoice.ratePerGram,
-    gst_rate: invoice.gstRate,
-    gst_amount: invoice.gstAmount,
-    taxable_amount: invoice.taxableAmount,
-    total_amount: invoice.totalAmount,
-    cogs: invoice.cogs || 0,
-    profit: invoice.profit || 0,
-    created_at: new Date().toISOString()
-  };
-
   try {
-    const { data, error } = await supabase
+    const payload = mapOrderToDB(invoice);
+    // Remove undefined user_id if any, allow DB default
+    const { error } = await supabase
       .from('orders')
-      .insert([orderPayload]);
+      .upsert(payload);
 
     if (error) {
-      console.error('Supabase Insert Error:', error.message, error.details);
+      console.error('Supabase Insert Error:', error.message);
       return false;
     }
     return true;
@@ -42,4 +82,33 @@ export const saveOrderToSupabase = async (invoice: Invoice) => {
     console.error('Supabase Connection Error:', err);
     return false;
   }
+};
+
+/**
+ * Deletes an order by ID.
+ */
+export const deleteOrderFromSupabase = async (id: string) => {
+  const { error } = await supabase.from('orders').delete().eq('id', id);
+  if (error) {
+      console.error("Delete failed", error);
+      return false;
+  }
+  return true;
+};
+
+/**
+ * Bulk inserts orders (used for migrating local storage to cloud).
+ */
+export const bulkInsertOrders = async (invoices: Invoice[]) => {
+  if (invoices.length === 0) return true;
+  
+  const payload = invoices.map(i => mapOrderToDB(i));
+  
+  const { error } = await supabase.from('orders').upsert(payload);
+  
+  if (error) {
+    console.error('Bulk Insert Error:', error);
+    return false;
+  }
+  return true;
 };
