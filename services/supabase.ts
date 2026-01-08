@@ -6,7 +6,17 @@ import { Invoice } from '../types';
 const SUPABASE_URL = 'https://frwfhwwclbutljjltjkt.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_GFjJT0VabZ-DFCmPUurA9A_np_ijLwh';
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+// CONFIGURATION UPDATE:
+// We now explicitly use 'window.sessionStorage'.
+// This forces the session to expire immediately when the browser tab or window is closed.
+export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    storage: window.sessionStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+  }
+});
 
 /**
  * Maps Supabase DB row (snake_case) to Invoice object (camelCase)
