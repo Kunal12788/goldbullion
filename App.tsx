@@ -18,7 +18,7 @@ import {
   ArrowUpRight, Scale, Coins, Trash2, TrendingUp, AlertTriangle, 
   FileSpreadsheet, FileText, Factory, Lock, ArrowRightLeft, LineChart, 
   Download, Users, ChevronRight, Crown, Briefcase, 
-  Timer, Activity, Wallet, FileDown, CheckCircle
+  Timer, Activity, Wallet, FileDown, CheckCircle, CloudCog, RefreshCw, CloudUpload, Server, Database
 } from 'lucide-react';
 import { 
   AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
@@ -70,6 +70,8 @@ function App() {
   const [marketRate, setMarketRate] = useState<string>(''); 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [dbError, setDbError] = useState(false); // Track DB connection/schema errors
   
   // Delete Modal State
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -114,7 +116,6 @@ function App() {
   );
 
   // --- CORE LOGIC: Recalculate State from Transactions ---
-  // This ensures that FIFO logic is consistent regardless of where data comes from (Local or Cloud)
   const recalculateAllData = (allInvoices: Invoice[]) => {
     const sorted = [...allInvoices].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     let currentInventory: InventoryBatch[] = [];
@@ -162,49 +163,85 @@ function App() {
   };
 
   // --- DATA LOADING & SYNC ---
-  useEffect(() => {
-    if (!session) return;
-
-    const initData = async () => {
+  const loadData = async () => {
         try {
-            // 1. Fetch Cloud Data
+            setIsSyncing(true);
             const cloudOrders = await fetchOrders();
-            
-            // 2. Fetch Local Data (for migration only)
             const localOrders = loadInvoices(); 
+            
+            if (cloudOrders === null) {
+                setDbError(true);
+                // Fallback to local data if cloud fails
+                const { updatedInvoices, updatedInventory } = recalculateAllData(localOrders);
+                setInvoices(updatedInvoices.reverse()); 
+                setInventory(updatedInventory);
+                return;
+            }
+            setDbError(false);
 
-            let finalOrders = [];
-
-            // MIGRATION LOGIC: If Cloud is empty but Local has data, upload Local to Cloud
+            // Check if local items are missing from cloud
+            const cloudIds = new Set(cloudOrders.map(o => o.id));
+            const unsyncedLocalOrders = localOrders.filter(lo => !cloudIds.has(lo.id));
+            
+            let finalOrders = cloudOrders;
+            
+            // If cloud is empty but we have local, use local temporarily for display until sync
             if (cloudOrders.length === 0 && localOrders.length > 0) {
-                addToast('SUCCESS', 'Migrating your local data to cloud...');
-                const success = await bulkInsertOrders(localOrders);
-                if (success) {
-                    finalOrders = localOrders;
-                    addToast('SUCCESS', 'Migration Complete! Your data is now safe in the cloud.');
-                } else {
-                    addToast('ERROR', 'Migration failed. Please check internet.');
-                    finalOrders = localOrders; // Fallback to local
-                }
-            } else {
-                // Normal Operation: Cloud is source of truth
-                finalOrders = cloudOrders;
+                finalOrders = localOrders;
+            } else if (unsyncedLocalOrders.length > 0) {
+                 // Mixed state: show both so user doesn't panic, but user needs to sync
+                 finalOrders = [...cloudOrders, ...unsyncedLocalOrders];
             }
 
-            // 3. Reconstruct State (FIFO)
             const { updatedInvoices, updatedInventory } = recalculateAllData(finalOrders);
-            
-            setInvoices(updatedInvoices.reverse()); // UI expects newest first
+            setInvoices(updatedInvoices.reverse()); 
             setInventory(updatedInventory);
-
         } catch (e) {
             console.error(e);
-            addToast('ERROR', 'Failed to load data from server.');
+            addToast('ERROR', 'Failed to load data.');
+        } finally {
+            setIsSyncing(false);
         }
-    };
+  };
 
-    initData();
+  useEffect(() => {
+    if (!session) return;
+    loadData();
   }, [session]);
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    try {
+        const localOrders = loadInvoices();
+        const cloudOrders = await fetchOrders();
+        
+        // If DB error, stop
+        if (cloudOrders === null) {
+            setDbError(true);
+            addToast('ERROR', 'Database error. Please fix the SQL setup first.');
+            return;
+        }
+
+        const cloudIds = new Set(cloudOrders.map(o => o.id));
+        const missingInCloud = localOrders.filter(l => !cloudIds.has(l.id));
+
+        if (missingInCloud.length === 0) {
+            addToast('SUCCESS', 'Everything is up to date!');
+        } else {
+            const success = await bulkInsertOrders(missingInCloud);
+            if (success) {
+                addToast('SUCCESS', `Successfully uploaded ${missingInCloud.length} records.`);
+                await loadData(); // Reload strictly from cloud
+            } else {
+                addToast('ERROR', 'Upload failed. Check connection.');
+            }
+        }
+    } catch (e) {
+        addToast('ERROR', 'Sync error occurred.');
+    } finally {
+        setIsSyncing(false);
+    }
+  };
 
   useEffect(() => {
       if(lockDate) localStorage.setItem('bullion_lock_date', lockDate);
@@ -354,10 +391,8 @@ function App() {
           if (deleteId) {
               const success = await deleteOrderFromSupabase(deleteId);
               if (success) {
-                  const remainingInvoices = invoices.filter(i => i.id !== deleteId);
-                  const { updatedInvoices, updatedInventory } = recalculateAllData(remainingInvoices);
-                  setInvoices(updatedInvoices);
-                  setInventory(updatedInventory);
+                  // Reload from source of truth
+                  await loadData();
                   addToast('SUCCESS', 'Record deleted and data recalculated.');
               } else {
                   addToast('ERROR', 'Failed to delete from server.');
@@ -374,10 +409,7 @@ function App() {
   const handleAddInvoice = async (invoice: Invoice) => {
     // 1. Optimistic Update (Immediate UI feedback)
     const newInvoicesList = [invoice, ...invoices];
-    // Note: We need to sort descending by date for the raw list before recalc, but recalc expects ascending
-    // Actually, simpler to just add to list, sort by date ascending, recalc, then reverse for UI.
     const { updatedInvoices, updatedInventory } = recalculateAllData(newInvoicesList);
-    
     setInvoices(updatedInvoices.reverse());
     setInventory(updatedInventory);
     
@@ -386,9 +418,10 @@ function App() {
     
     if (success) {
         addToast('SUCCESS', `${invoice.type === 'PURCHASE' ? 'Purchase' : 'Sale'} Saved to Cloud.`);
+        // Reload strictly to ensure consistency with DB triggers/defaults
+        // await loadData(); 
     } else {
         addToast('ERROR', 'Failed to save to cloud. Check connection.');
-        // Optional: Rollback state here if strict consistency needed
     }
   };
 
@@ -576,7 +609,10 @@ function App() {
 
   const DashboardView = () => {
        const qtySoldPeriod = filteredInvoices.filter(i => i.type === 'SALE').reduce((acc, i) => acc + i.quantityGrams, 0);
-       
+       const localCount = loadInvoices().length;
+       const cloudCount = invoices.length;
+       const hasMissing = localCount > cloudCount;
+
        return (
             <div className="space-y-6 animate-enter">
                 <SectionHeader 
@@ -584,6 +620,51 @@ function App() {
                     subtitle="Overview of your inventory and performance."
                     action={renderDateFilter()}
                 />
+
+                {/* --- DATABASE ERROR ALERT --- */}
+                {dbError && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-red-600 shadow-xl flex items-center gap-4 animate-pulse-slow">
+                        <div className="p-3 bg-red-100 rounded-full text-red-600">
+                            <Database className="w-6 h-6"/>
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="font-bold text-lg text-red-700">Database Connection Issue</h3>
+                            <p className="text-sm font-medium text-red-600/80 mt-1">
+                                We cannot fetch your cloud data. This usually happens if the <strong>SQL Setup</strong> hasn't been run yet.
+                                Please go to your Supabase SQL Editor and run the setup script.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {/* --- CLOUD SYNC CARD --- */}
+                <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 border border-slate-700/50">
+                    <div className="flex items-center gap-4">
+                        <div className={`p-3 rounded-full ${hasMissing ? 'bg-amber-500/20 text-amber-400' : 'bg-green-500/20 text-green-400'}`}>
+                            {isSyncing ? <RefreshCw className="w-6 h-6 animate-spin"/> : <CloudCog className="w-6 h-6"/>}
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-lg">Cloud Sync Status</h3>
+                            <div className="flex gap-4 text-sm text-slate-400 mt-1">
+                                <span className="flex items-center gap-1"><Server className="w-3 h-3"/> Cloud: {cloudCount}</span>
+                                <span className="flex items-center gap-1"><FileText className="w-3 h-3"/> Local: {localCount}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {hasMissing ? (
+                         <div className="flex items-center gap-4">
+                             <p className="text-sm font-medium text-amber-300">Unsynced records found on this device.</p>
+                             <button onClick={handleManualSync} disabled={isSyncing} className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold rounded-lg transition-colors flex items-center gap-2">
+                                 {isSyncing ? 'Uploading...' : 'Sync Now'} <CloudUpload className="w-4 h-4"/>
+                             </button>
+                         </div>
+                    ) : (
+                        <div className="flex items-center gap-2 text-green-400 bg-green-500/10 px-4 py-2 rounded-lg border border-green-500/20">
+                            <CheckCircle className="w-4 h-4"/>
+                            <span className="text-sm font-bold">System Synchronized</span>
+                        </div>
+                    )}
+                </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <StatsCard title="Current Stock" value={formatGrams(currentStock)} subValue={`${inventory.filter(b=>b.remainingQuantity>0).length} active batches`} icon={Coins} delayIndex={0} isActive />
@@ -1281,6 +1362,14 @@ function App() {
     >
         <Toast toasts={toasts} removeToast={removeToast} />
         
+        {/* Sync Indicator Overlay (Optional) */}
+        {isSyncing && (
+           <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2 rounded-full shadow-xl z-50 flex items-center gap-2 text-sm animate-slide-up">
+              <RefreshCw className="w-4 h-4 animate-spin"/>
+              Syncing Cloud Data...
+           </div>
+        )}
+
         {/* Delete Modal */}
         {showDeleteModal && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in">

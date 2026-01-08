@@ -47,8 +47,9 @@ const mapOrderToDB = (invoice: Invoice, userId?: string) => ({
 
 /**
  * Fetches all orders for the logged-in user.
+ * Returns null if there is a database error (e.g., table missing).
  */
-export const fetchOrders = async (): Promise<Invoice[]> => {
+export const fetchOrders = async (): Promise<Invoice[] | null> => {
   const { data, error } = await supabase
     .from('orders')
     .select('*')
@@ -56,7 +57,7 @@ export const fetchOrders = async (): Promise<Invoice[]> => {
 
   if (error) {
     console.error('Error fetching orders:', error);
-    return [];
+    return null;
   }
 
   return data.map(mapOrderFromDB);
