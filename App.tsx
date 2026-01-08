@@ -1,5 +1,8 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
+import { Session } from '@supabase/supabase-js';
 import Layout from './components/Layout';
+import Auth from './components/Auth';
 import InvoiceForm from './components/InvoiceForm';
 import InventoryTable from './components/InventoryTable';
 import StatsCard from './components/StatsCard';
@@ -8,7 +11,7 @@ import { SingleDatePicker } from './components/SingleDatePicker';
 import Toast, { ToastMessage } from './components/Toast'; 
 import { Invoice, InventoryBatch, CustomerStat, AgingStats, SupplierStat, RiskAlert } from './types';
 import { loadInvoices, loadInventory, saveInvoices, saveInventory, resetData } from './services/storeService';
-import { saveOrderToSupabase } from './services/supabase';
+import { supabase, saveOrderToSupabase } from './services/supabase';
 import { formatCurrency, formatGrams, calculateInventoryValueOnDate, getDateDaysAgo, calculateStockAging, calculateSupplierStats, calculateTurnoverStats, generateId, downloadCSV } from './utils';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -63,6 +66,7 @@ const ExportMenu: React.FC<{ onExport: (type: 'CSV' | 'PDF') => void }> = ({ onE
 );
 
 function App() {
+  const [session, setSession] = useState<Session | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [inventory, setInventory] = useState<InventoryBatch[]>([]);
@@ -81,6 +85,21 @@ function App() {
   });
   const [lockDate, setLockDate] = useState<string | null>(localStorage.getItem('bullion_lock_date') || null);
   const [showLockSettings, setShowLockSettings] = useState(false);
+
+  // Authentication Check
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Load Data
   useEffect(() => {
@@ -105,6 +124,10 @@ function App() {
   };
   const removeToast = (id: string) => {
       setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  const handleLogout = async () => {
+      await supabase.auth.signOut();
   };
 
   // --- DERIVED INTELLIGENCE (GLOBAL) ---
@@ -1293,8 +1316,18 @@ function App() {
        );
   };
 
+  if (!session) {
+    return <Auth />;
+  }
+
   return (
-    <Layout activeTab={activeTab} onTabChange={setActiveTab} searchQuery={searchQuery} onSearch={setSearchQuery}>
+    <Layout 
+      activeTab={activeTab} 
+      onTabChange={setActiveTab} 
+      searchQuery={searchQuery} 
+      onSearch={setSearchQuery}
+      onLogout={handleLogout}
+    >
         <Toast toasts={toasts} removeToast={removeToast} />
         
         {/* Delete Modal */}

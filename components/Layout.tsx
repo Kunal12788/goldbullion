@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, FileText, Package, PieChart, ShieldCheck, LineChart, Users, Briefcase, Factory, Search } from 'lucide-react';
+import { LayoutDashboard, FileText, Package, PieChart, ShieldCheck, LineChart, Users, Briefcase, Factory, Search, LogOut } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -8,9 +8,10 @@ interface LayoutProps {
   onTabChange: (tab: string) => void;
   searchQuery?: string;
   onSearch?: (query: string) => void;
+  onLogout?: () => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, searchQuery = '', onSearch }) => {
+const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, searchQuery = '', onSearch, onLogout }) => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'invoices', label: 'Invoices', icon: FileText },
@@ -64,15 +65,24 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, searc
           })}
         </nav>
         
-        <div className="p-4 m-4 rounded-2xl bg-slate-900/50 border border-slate-800 backdrop-blur-sm">
+        <div className="p-4 m-4 rounded-2xl bg-slate-900/50 border border-slate-800 backdrop-blur-sm group relative">
             <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-700 to-slate-800 border border-slate-600 flex items-center justify-center text-white font-bold shadow-lg">
                     BO
                 </div>
-                <div className="overflow-hidden">
+                <div className="overflow-hidden flex-1">
                     <p className="text-sm font-semibold text-white truncate">Business Owner</p>
                     <p className="text-xs text-slate-500 truncate">Private Ledger</p>
                 </div>
+                {onLogout && (
+                    <button 
+                        onClick={onLogout}
+                        className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-white/5 transition-colors"
+                        title="Sign Out"
+                    >
+                        <LogOut className="w-4 h-4" />
+                    </button>
+                )}
             </div>
         </div>
       </aside>
@@ -86,7 +96,14 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, searc
                    </div>
                    <span className="font-bold text-lg">BullionKeep</span>
                </div>
-               <div className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Mobile AI</div>
+               <div className="flex items-center gap-3">
+                   <div className="text-[10px] text-slate-400 uppercase font-bold tracking-widest hidden sm:block">Mobile AI</div>
+                   {onLogout && (
+                        <button onClick={onLogout} className="p-1.5 bg-slate-800 rounded-md text-slate-400">
+                            <LogOut className="w-4 h-4" />
+                        </button>
+                   )}
+               </div>
            </div>
            
            {/* Mobile Search */}
