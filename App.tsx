@@ -117,7 +117,23 @@ function App() {
 
   // --- CORE LOGIC: Recalculate State from Transactions ---
   const recalculateAllData = (allInvoices: Invoice[]) => {
-    const sorted = [...allInvoices].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // FIX: Enhanced Sorting Logic for Strict FIFO
+    // 1. Sort by Date (Ascending)
+    // 2. Sort by Type (PURCHASE before SALE on same day)
+    // 3. Sort by ID (Deterministic tie-breaker)
+    const sorted = [...allInvoices].sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        
+        if (dateA !== dateB) return dateA - dateB;
+        
+        // Critical: Process IN (Purchase) before OUT (Sale) for same-day transactions
+        if (a.type === 'PURCHASE' && b.type === 'SALE') return -1;
+        if (a.type === 'SALE' && b.type === 'PURCHASE') return 1;
+        
+        return a.id.localeCompare(b.id);
+    });
+
     let currentInventory: InventoryBatch[] = [];
     const processedInvoices: Invoice[] = [];
 

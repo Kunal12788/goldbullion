@@ -60,10 +60,12 @@ const mapOrderToDB = (invoice: Invoice, userId?: string) => ({
  * Returns null if there is a database error (e.g., table missing).
  */
 export const fetchOrders = async (): Promise<Invoice[] | null> => {
+  // Added secondary sort by 'created_at' to ensure deterministic order
   const { data, error } = await supabase
     .from('orders')
     .select('*')
-    .order('date', { ascending: true }); // Important for FIFO reconstruction
+    .order('date', { ascending: true })
+    .order('created_at', { ascending: true }); // Important for FIFO reconstruction stability
 
   if (error) {
     console.error('Error fetching orders:', error);
