@@ -464,10 +464,6 @@ function App() {
   }
 
   // --- EXPORT HANDLERS ---
-  // (Keep export handlers same, but ensure calculations are consistent)
-  
-  // [Exports are unchanged for brevity, they rely on 'invoices' state which is now corrected]
-  // ... (handleInventoryExport, handlePriceExport, etc. omitted but assumed present)
   
   const generatePDF = (title: string, head: string[][], body: (string | number)[][], summary?: string[]) => {
       const doc = new jsPDF();
@@ -560,7 +556,6 @@ function App() {
   };
 
   // --- SUB-VIEWS ---
-  // (All sub-views remain mostly same, just updating InvoicesView to show tooltip)
 
   const DashboardView = () => {
        const qtySoldPeriod = filteredInvoices.filter(i => i.type === 'SALE').reduce((acc, i) => acc + i.quantityGrams, 0);
@@ -637,12 +632,7 @@ function App() {
        );
   };
   
-  // Other Views (CustomerInsightsView, PriceAnalysisView, AnalyticsView, SupplierInsightsView, BusinessLedgerView)
-  // ... (Kept implicitly same as before, no logic changes needed there as they use derived 'invoices')
-  // For brevity, I am including CustomerInsightsView and others in the full 'App.tsx' if asked, but here I focus on InvoicesView update.
-
   const CustomerInsightsView = () => {
-    // ... same as before
     return (
         <div className="space-y-8 animate-enter">
             <SectionHeader title="Customer Intelligence" subtitle="Analyze purchasing patterns and profitability." action={<div className="flex gap-2 items-center"><ExportMenu onExport={handleCustomerExport} />{renderDateFilter()}</div>}/>
@@ -653,7 +643,6 @@ function App() {
   }
 
   const PriceAnalysisView = () => {
-       // ... same logic
        const priceMetrics = useMemo(() => {
           const purchases = filteredInvoices.filter(i => i.type === 'PURCHASE');
           const sales = filteredInvoices.filter(i => i.type === 'SALE');
@@ -683,8 +672,7 @@ function App() {
   }
 
   const AnalyticsView = () => {
-    // ... same
-    const realizedProfit = totalProfit; 
+      const realizedProfit = totalProfit; 
       const rate = parseFloat(marketRate);
       const hasRate = !isNaN(rate) && rate > 0;
       const unrealizedProfit = hasRate ? (currentStock * rate) - fifoValue : 0;
@@ -698,16 +686,124 @@ function App() {
   }
 
   const SupplierInsightsView = () => {
-    // ... same
     return (<div className="space-y-6 animate-enter"><SectionHeader title="Supplier Performance" subtitle="Track procurement costs and volatility." action={<div className="flex gap-2 items-center"><ExportMenu onExport={handleSupplierExport} />{renderDateFilter()}</div>}/><div className="grid grid-cols-1 md:grid-cols-2 gap-6">{supplierData.slice(0, 4).map((s, i) => (<div key={i} className="bg-white p-6 rounded-2xl shadow-card border border-slate-100 flex flex-col justify-between"><div className="flex justify-between items-start mb-4"><div><h3 className="font-bold text-lg text-slate-900">{s.name}</h3><p className="text-xs text-slate-500 uppercase tracking-wide">Primary Supplier</p></div><div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Factory className="w-5 h-5"/></div></div><div className="space-y-3"><div className="flex justify-between text-sm"><span className="text-slate-500">Total Volume</span><span className="font-mono font-bold">{formatGrams(s.totalGramsPurchased)}</span></div><div className="flex justify-between text-sm"><span className="text-slate-500">Avg Rate</span><span className="font-mono font-bold text-blue-600">{formatCurrency(s.avgRate)}</span></div><div className="flex justify-between text-sm"><span className="text-slate-500">Volatility</span><span className="font-mono font-bold text-amber-600">± {formatCurrency(s.volatility)}</span></div></div></div>))}</div><div className="grid grid-cols-1 lg:grid-cols-2 gap-8"><Card title="Volume Dependency (Grams)" delay={300} className="min-h-[350px]"><ResponsiveContainer width="100%" height={300}><PieChart><Pie data={useMemo(() => { const sorted = [...supplierData].sort((a,b) => b.totalGramsPurchased - a.totalGramsPurchased); const mapped = sorted.map(s => ({ name: s.name, value: s.totalGramsPurchased })); return [ ...mapped.slice(0,5), mapped.slice(5).length > 0 ? { name: 'Others', value: mapped.slice(5).reduce((a,c)=>a+c.value,0) } : null ].filter(Boolean); }, [supplierData])} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value"><Cell fill="#3b82f6" /><Cell fill="#06b6d4" /><Cell fill="#10b981" /><Cell fill="#f59e0b" /><Cell fill="#6366f1" /></Pie><Tooltip formatter={(val:number) => formatGrams(val)} /><Legend/></PieChart></ResponsiveContainer></Card><Card title="Capital Allocation (Cost)" delay={400} className="min-h-[350px]"><ResponsiveContainer width="100%" height={300}><PieChart><Pie data={useMemo(() => { const sorted = [...supplierData].sort((a,b) => (b.totalGramsPurchased*b.avgRate) - (a.totalGramsPurchased*a.avgRate)); const mapped = sorted.map(s => ({ name: s.name, value: s.totalGramsPurchased*s.avgRate })); return [ ...mapped.slice(0,5), mapped.slice(5).length > 0 ? { name: 'Others', value: mapped.slice(5).reduce((a,c)=>a+c.value,0) } : null ].filter(Boolean); }, [supplierData])} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value"><Cell fill="#3b82f6" /><Cell fill="#06b6d4" /><Cell fill="#10b981" /><Cell fill="#f59e0b" /><Cell fill="#6366f1" /></Pie><Tooltip formatter={(val:number) => formatCurrency(val)} /><Legend/></PieChart></ResponsiveContainer></Card></div></div>);
   }
 
   const BusinessLedgerView = () => {
-    // ... same
-    return (<div className="space-y-6 animate-enter"><SectionHeader title="Business Ledger" subtitle="Monthly financial breakdown and performance." action={<ExportMenu onExport={(t) => handleLedgerExport(t, useMemo(() => { const stats: Record<string, { turnover: number, profit: number, tax: number, qty: number }> = {}; invoices.filter(i => i.type === 'SALE').forEach(inv => { const d = new Date(inv.date); const key = `${d.getFullYear()}-${d.getMonth()}`; if (!stats[key]) stats[key] = { turnover: 0, profit: 0, tax: 0, qty: 0 }; stats[key].turnover += inv.taxableAmount; stats[key].profit += (inv.profit || 0); stats[key].tax += inv.gstAmount; stats[key].qty += inv.quantityGrams; }); return Object.entries(stats).map(([key, val]) => { const [y, m] = key.split('-'); return { date: new Date(parseInt(y), parseInt(m), 1), ...val }; }).sort((a,b) => b.date.getTime() - a.date.getTime()); }, [invoices]).monthlyData, { turnover: 0, profit: 0, qty: 0, margin: 0 } /* Placeholder totals for now */)} />} /></div>);
-    // Note: I truncated this view in this snippet for brevity as logic didn't change, but in real file it should be fully present as in previous turn
-  }
+      // Calculate monthly ledger
+      const { monthlyData, totals } = useMemo(() => {
+          const stats: Record<string, { turnover: number, profit: number, tax: number, qty: number }> = {};
+          let totalTurnover = 0;
+          let totalProfit = 0;
+          let totalQty = 0;
 
+          // Robust filtering and processing
+          invoices
+            .filter(i => i.type === 'SALE')
+            .forEach(inv => {
+                // Parse date strings manually to avoid timezone issues
+                // inv.date is YYYY-MM-DD
+                const parts = inv.date.split('-');
+                if (parts.length !== 3) return;
+                
+                const year = parseInt(parts[0]);
+                const monthIndex = parseInt(parts[1]) - 1; // 0-11
+                
+                const key = `${year}-${monthIndex}`;
+                
+                if (!stats[key]) stats[key] = { turnover: 0, profit: 0, tax: 0, qty: 0 };
+                
+                stats[key].turnover += inv.taxableAmount || 0;
+                stats[key].profit += inv.profit || 0;
+                stats[key].tax += inv.gstAmount || 0;
+                stats[key].qty += inv.quantityGrams || 0;
+
+                totalTurnover += inv.taxableAmount || 0;
+                totalProfit += inv.profit || 0;
+                totalQty += inv.quantityGrams || 0;
+          });
+
+          const monthly = Object.entries(stats).map(([key, val]) => {
+              const [y, m] = key.split('-');
+              return {
+                  date: new Date(parseInt(y), parseInt(m), 1),
+                  ...val
+              };
+          }).sort((a,b) => b.date.getTime() - a.date.getTime());
+
+          const totalMargin = totalTurnover > 0 ? (totalProfit / totalTurnover) * 100 : 0;
+
+          return { 
+              monthlyData: monthly, 
+              totals: { turnover: totalTurnover, profit: totalProfit, qty: totalQty, margin: totalMargin }
+          };
+      }, [invoices]);
+
+      return (
+          <div className="space-y-6 animate-enter">
+              <SectionHeader 
+                   title="Business Ledger" 
+                   subtitle="Monthly financial breakdown and performance." 
+                   action={<ExportMenu onExport={(t) => handleLedgerExport(t, monthlyData, totals)} />}
+              />
+
+              <div className="bg-slate-900 rounded-2xl p-8 text-white flex flex-col md:flex-row justify-between items-center shadow-2xl shadow-slate-900/20 mb-6">
+                  <div className="text-center md:text-left mb-6 md:mb-0">
+                      <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-2">Lifetime Turnover (Ex GST)</p>
+                      <h2 className="text-4xl md:text-5xl font-mono font-bold text-white mb-1">{formatCurrency(totals.turnover)}</h2>
+                      <p className="text-gold-400 font-medium">Net Profit: {formatCurrency(totals.profit)} ({totals.margin.toFixed(2)}%)</p>
+                  </div>
+                  <div className="flex gap-8 border-t md:border-t-0 md:border-l border-slate-700 pt-6 md:pt-0 md:pl-8">
+                       <div>
+                           <p className="text-slate-500 text-xs font-bold uppercase mb-1">Total Gold Sold</p>
+                           <p className="text-2xl font-mono font-bold">{formatGrams(totals.qty)}</p>
+                       </div>
+                       <div>
+                           <p className="text-slate-500 text-xs font-bold uppercase mb-1">Active Batches</p>
+                           <p className="text-2xl font-mono font-bold">{inventory.filter(b => b.remainingQuantity > 0).length}</p>
+                       </div>
+                  </div>
+              </div>
+
+              <Card title="Monthly Breakdown">
+                  <div className="overflow-x-auto">
+                      <table className="w-full text-sm text-left">
+                          <thead className="text-slate-500 bg-slate-50/50">
+                              <tr>
+                                  <th className="px-4 py-3">Month</th>
+                                  <th className="px-4 py-3 text-right">Turnover (Ex GST)</th>
+                                  <th className="px-4 py-3 text-right">GST Collected</th>
+                                  <th className="px-4 py-3 text-right">Net Profit</th>
+                                  <th className="px-4 py-3 text-right">Margin %</th>
+                                  <th className="px-4 py-3 text-right">Qty Sold</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              {monthlyData.length === 0 ? (
+                                <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400 italic">No sales data recorded yet.</td></tr>
+                              ) : (
+                                monthlyData.map((m, i) => (
+                                  <tr key={i} className="hover:bg-slate-50 border-b border-slate-50">
+                                      <td className="px-4 py-3 font-bold text-slate-800">{m.date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</td>
+                                      <td className="px-4 py-3 text-right font-mono text-slate-700">{formatCurrency(m.turnover)}</td>
+                                      <td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(m.tax)}</td>
+                                      <td className="px-4 py-3 text-right font-mono text-green-600 font-bold">{formatCurrency(m.profit)}</td>
+                                      <td className="px-4 py-3 text-right font-mono">
+                                          <span className={`px-2 py-1 rounded text-xs font-bold ${m.turnover > 0 && (m.profit/m.turnover) > 0.01 ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
+                                              {(m.turnover > 0 ? (m.profit/m.turnover)*100 : 0).toFixed(2)}%
+                                          </span>
+                                      </td>
+                                      <td className="px-4 py-3 text-right font-mono text-slate-600">{formatGrams(m.qty)}</td>
+                                  </tr>
+                                ))
+                              )}
+                          </tbody>
+                      </table>
+                  </div>
+              </Card>
+          </div>
+      );
+  };
 
   const InvoicesView = () => (
       <div className="flex flex-col lg:flex-row gap-6 relative items-start h-full">
