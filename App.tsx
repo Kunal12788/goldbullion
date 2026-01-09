@@ -704,6 +704,54 @@ function App() {
         };
     }, [selectedCustomer, filteredInvoices]);
 
+    const handleSingleCustomerExport = (type: 'CSV' | 'PDF') => {
+        if (!selectedCustomer || !selectedCustomerStats) return;
+        
+        const { txs, totalVol, totalRev, totalProfit, avgMargin } = selectedCustomerStats;
+        const filename = `${selectedCustomer.replace(/\s+/g, '_')}_sales_history`;
+
+        if (type === 'CSV') {
+            const headers = ['Date', 'Volume (g)', 'Rate (INR/g)', 'Sale Value (Ex GST)', 'Profit', 'Margin %'];
+            const rows = txs.map(sale => {
+                const margin = sale.taxableAmount > 0 ? ((sale.profit || 0) / sale.taxableAmount) * 100 : 0;
+                return [
+                    sale.date,
+                    sale.quantityGrams,
+                    sale.ratePerGram,
+                    sale.taxableAmount,
+                    sale.profit || 0,
+                    margin.toFixed(2)
+                ].join(',');
+            });
+            const csvContent = [headers.join(','), ...rows].join('\n');
+            downloadCSV(csvContent, `${filename}.csv`);
+            addToast('SUCCESS', 'Customer history CSV downloaded.');
+        } else {
+            // PDF
+            const head = [['Date', 'Volume (g)', 'Rate', 'Sale Value', 'Profit', 'Margin %']];
+            const body = txs.map(sale => {
+                const margin = sale.taxableAmount > 0 ? ((sale.profit || 0) / sale.taxableAmount) * 100 : 0;
+                return [
+                    sale.date,
+                    formatGrams(sale.quantityGrams),
+                    formatCurrency(sale.ratePerGram),
+                    formatCurrency(sale.taxableAmount),
+                    formatCurrency(sale.profit || 0),
+                    `${margin.toFixed(2)}%`
+                ];
+            });
+            const summary = [
+                `Customer: ${selectedCustomer}`,
+                `Period: ${new Date(dateRange.start).toLocaleDateString()} - ${new Date(dateRange.end).toLocaleDateString()}`,
+                `Total Volume: ${formatGrams(totalVol)}`,
+                `Total Revenue: ${formatCurrency(totalRev)}`,
+                `Total Profit: ${formatCurrency(totalProfit)}`,
+                `Avg Margin: ${avgMargin.toFixed(2)}%`
+            ];
+            generatePDF(`Sales History: ${selectedCustomer}`, head, body, summary);
+        }
+    };
+
     return (
         <div className="space-y-8 animate-enter">
             <SectionHeader title="Customer Intelligence" subtitle="Analyze purchasing patterns and profitability." action={<div className="flex gap-2 items-center"><ExportMenu onExport={handleCustomerExport} />{renderDateFilter()}</div>}/>
@@ -789,14 +837,17 @@ function App() {
                 ) : (
                     // Detail View: Specific Customer History
                     <div className="space-y-6 animate-fade-in">
-                        <div className="flex items-center justify-between">
-                            <button 
-                                onClick={() => setSelectedCustomer(null)}
-                                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
-                            >
-                                <ChevronLeft className="w-4 h-4"/> Back to List
-                            </button>
-                            <h3 className="text-xl font-bold text-slate-800">{selectedCustomer}</h3>
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                                <button 
+                                    onClick={() => setSelectedCustomer(null)}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                                >
+                                    <ChevronLeft className="w-4 h-4"/> Back to List
+                                </button>
+                                <h3 className="text-xl font-bold text-slate-800">{selectedCustomer}</h3>
+                            </div>
+                            <ExportMenu onExport={handleSingleCustomerExport} />
                         </div>
 
                         {/* Summary Header for Selected Customer */}
@@ -1100,7 +1151,7 @@ function App() {
   const InvoicesView = () => (
       <div className="flex flex-col lg:flex-row gap-6 relative items-start h-full">
           <div className="w-full lg:w-[380px] xl:w-[420px] flex-shrink-0 lg:sticky lg:top-0 transition-all">
-              <InvoiceForm onAdd={handleAddInvoice} currentStock={currentStock} lockDate={lockDate} />
+              <InvoiceForm onAdd={handleAddInvoice} currentStock={currentStock} lockDate={lockDate} invoices={invoices} />
           </div>
           <div className="flex-1 w-full min-w-0">
               <Card title="Recent Transactions" className="min-h-[600px] h-full flex flex-col" delay={200}

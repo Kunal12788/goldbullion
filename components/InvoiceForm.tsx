@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { Invoice, TransactionType } from '../types';
 import { generateId, parseInvoiceOCR } from '../utils';
@@ -10,9 +10,10 @@ interface InvoiceFormProps {
   onAdd: (invoice: Invoice) => void;
   currentStock: number;
   lockDate: string | null;
+  invoices: Invoice[]; // Added to access history for suggestions
 }
 
-const InvoiceForm: React.FC<InvoiceFormProps> = ({ onAdd, currentStock, lockDate }) => {
+const InvoiceForm: React.FC<InvoiceFormProps> = ({ onAdd, currentStock, lockDate, invoices }) => {
   const [mode, setMode] = useState<'MANUAL' | 'UPLOAD'>('MANUAL');
   const [ocrText, setOcrText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -27,6 +28,13 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onAdd, currentStock, lockDate
   });
 
   const [error, setError] = useState('');
+
+  // Extract unique names from history based on selected transaction type
+  const nameSuggestions = useMemo(() => {
+      const filtered = invoices.filter(inv => inv.type === formData.type);
+      const names = new Set(filtered.map(inv => inv.partyName));
+      return Array.from(names).sort();
+  }, [invoices, formData.type]);
 
   const getTaxableTotal = () => {
       const qty = parseFloat(formData.quantityGrams);
@@ -195,7 +203,19 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onAdd, currentStock, lockDate
 
                     <div>
                         <label className={labelClass}>{formData.type === 'PURCHASE' ? 'Supplier Name' : 'Customer Name'}</label>
-                        <input type="text" placeholder="Enter Name..." value={formData.partyName} onChange={(e) => setFormData({...formData, partyName: e.target.value})} className={inputClass} />
+                        <input 
+                            type="text" 
+                            list="party-names"
+                            placeholder="Enter Name..." 
+                            value={formData.partyName} 
+                            onChange={(e) => setFormData({...formData, partyName: e.target.value})} 
+                            className={inputClass} 
+                        />
+                        <datalist id="party-names">
+                            {nameSuggestions.map((name) => (
+                                <option key={name} value={name} />
+                            ))}
+                        </datalist>
                     </div>
 
                     <div className="grid grid-cols-3 gap-3">
