@@ -10,7 +10,7 @@ import { DateRangePicker } from './components/DateRangePicker';
 import Toast, { ToastMessage } from './components/Toast'; 
 import { Invoice, InventoryBatch, CustomerStat, AgingStats, SupplierStat, RiskAlert } from './types';
 import { loadInvoices, resetData } from './services/storeService'; // Kept ONLY for migration
-import { supabase, saveOrderToSupabase, fetchOrders, deleteOrderFromSupabase, bulkInsertOrders } from './services/supabase';
+import { supabase, saveOrderToSupabase, fetchOrders, deleteOrderFromSupabase, bulkInsertOrders, updateOrderPartyName } from './services/supabase';
 import { formatCurrency, formatGrams, getDateDaysAgo, calculateStockAging, calculateSupplierStats, calculateTurnoverStats, generateId, downloadCSV } from './utils';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -18,10 +18,10 @@ import {
   ArrowUpRight, Scale, Coins, Trash2, TrendingUp, AlertTriangle, 
   FileSpreadsheet, FileText, Factory, Lock, ArrowRightLeft, LineChart, 
   Download, Users, ChevronRight, Crown, Briefcase, 
-  Timer, Activity, Wallet, FileDown, CheckCircle, CloudCog, RefreshCw, CloudUpload, Server, Database, Info
+  Timer, Activity, Wallet, FileDown, CheckCircle, CloudCog, RefreshCw, CloudUpload, Server, Database, Info, Edit2
 } from 'lucide-react';
 import { 
-  AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
+  AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Sector 
 } from 'recharts';
 
 // --- Shared UI Components ---
@@ -77,6 +77,12 @@ function App() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deletePassword, setDeletePassword] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // Edit Name Modal State
+  const [showEditNameModal, setShowEditNameModal] = useState(false);
+  const [editNameId, setEditNameId] = useState<string | null>(null);
+  const [editNamePassword, setEditNamePassword] = useState('');
+  const [newPartyName, setNewPartyName] = useState('');
   
   const [dateRange, setDateRange] = useState({
       start: getDateDaysAgo(30),
@@ -118,13 +124,6 @@ function App() {
   // --- CORE LOGIC: Recalculate State from Transactions ---
   const recalculateAllData = (allInvoices: Invoice[]) => {
     // FIX: Strict FIFO Engine with Timestamp Sequencing
-    // 1. Sort by Business Date (YYYY-MM-DD)
-    // 2. Sort by CreatedAt Timestamp (Strict Chronological Order within the day)
-    // 3. Fallback to ID for stability if timestamps match or missing
-    //
-    // CRITICAL CHANGE: We no longer force Purchases before Sales on the same day.
-    // The exact sequence of entry determines the FIFO application.
-    
     const sorted = [...allInvoices].sort((a, b) => {
         // 1. Primary: Business Date
         const dateComp = a.date.localeCompare(b.date);
@@ -449,6 +448,33 @@ function App() {
       }
   };
 
+  const handleInitEditName = (id: string, currentName: string) => {
+      setEditNameId(id);
+      setNewPartyName(currentName);
+      setEditNamePassword('');
+      setShowEditNameModal(true);
+  };
+
+  const confirmNameUpdate = async () => {
+      if (editNamePassword === 'QAZ@456') {
+          if (editNameId && newPartyName.trim()) {
+              const success = await updateOrderPartyName(editNameId, newPartyName.trim());
+              if (success) {
+                  await loadData();
+                  addToast('SUCCESS', 'Party name updated successfully.');
+              } else {
+                  addToast('ERROR', 'Failed to update name on server.');
+              }
+          }
+          setShowEditNameModal(false);
+          setEditNameId(null);
+          setEditNamePassword('');
+          setNewPartyName('');
+      } else {
+          addToast('ERROR', 'Incorrect Admin Password.');
+      }
+  };
+
   const handleAddInvoice = async (invoice: Invoice) => {
     // 1. Optimistic Update (Immediate UI feedback)
     const newInvoicesList = [invoice, ...invoices];
@@ -702,8 +728,99 @@ function App() {
       const others = customerData.slice(5).reduce((acc, c) => acc + c.totalGrams, 0);
       if (others > 0) pieData.push({ name: 'Others', value: others });
       const COLORS = ['#d19726', '#e4c76d', '#b4761e', '#f5eccb', '#90561a', '#94a3b8'];
+
+      // Active Shape for Donut Chart
+      const renderActiveShape = (props: any) => {
+        const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value } = props;
+        return (
+          <g>
+            <text x={cx} y={cy - 10} dy={8} textAnchor="middle" fill="#1e293b" className="text-lg font-bold">
+                {payload.name}
+            </text>
+            <text x={cx} y={cy + 15} dy={8} textAnchor="middle" fill="#64748b" className="text-sm font-mono">
+                {`${(percent * 100).toFixed(1)}%`}
+            </text>
+            <Sector
+              cx={cx}
+              cy={cy}
+              innerRadius={innerRadius}
+              outerRadius={outerRadius + 8}
+              startAngle={startAngle}
+              endAngle={endAngle}
+              fill={fill}
+              className="drop-shadow-lg"
+            />
+            <Sector
+              cx={cx}
+              cy={cy}
+              startAngle={startAngle}
+              endAngle={endAngle}
+              innerRadius={innerRadius - 6}
+              outerRadius={innerRadius}
+              fill={fill}
+              opacity={0.3}
+            />
+          </g>
+        );
+      };
+
+      const [activeIndex, setActiveIndex] = useState(0);
+      const onPieEnter = (_: any, index: number) => {
+        setActiveIndex(index);
+      };
+
       return (
-      <div className="space-y-8"><SectionHeader title="Analytics & Reports" subtitle="Deep dive into your business performance." action={<div className="flex gap-2 items-center"><ExportMenu onExport={(t) => addToast('SUCCESS', 'For detailed exports, use specific sections or Generate PDF below.')} />{renderDateFilter()}</div>}/><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatsCard title="Inventory Turnover" value={`${turnoverStats.turnoverRatio.toFixed(2)}x`} subValue="Ratio (COGS / Avg Inv)" icon={Activity} isActive /><StatsCard title="Avg Days to Sell" value={`${Math.round(turnoverStats.avgDaysToSell)} Days`} subValue="Velocity" icon={Timer} /><StatsCard title="Realized Profit" value={formatCurrency(realizedProfit)} subValue="From Sales" icon={Wallet} /><div className="bg-slate-900 rounded-2xl p-6 text-white relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 right-0 w-24 h-24 bg-gold-500/20 rounded-full blur-3xl -mr-8 -mt-8"></div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Unrealized Profit (Est)</p><div className="flex items-end gap-2 mb-2"><input type="number" placeholder="Mkt Rate..." value={marketRate} onChange={(e) => setMarketRate(e.target.value)} className="w-24 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white focus:border-gold-500 outline-none"/></div><h3 className={`text-2xl font-mono font-bold ${unrealizedProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{hasRate ? formatCurrency(unrealizedProfit) : '---'}</h3></div></div><div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">{[{ id: 'CUSTOMER', title: 'Customer Report', icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },{ id: 'SUPPLIER', title: 'Supplier Report', icon: Factory, color: 'text-blue-600', bg: 'bg-blue-50' },{ id: 'CONSOLIDATED', title: 'Full Audit', icon: FileText, color: 'text-gold-600', bg: 'bg-gold-50' }].map((rpt, i) => (<div key={rpt.id} onClick={() => {}} className="group bg-white p-6 rounded-2xl border border-slate-100 shadow-card hover:shadow-lg transition-all cursor-pointer flex items-center gap-5 animate-slide-up" style={{ animationDelay: `${i*100}ms` }}><div className={`p-4 rounded-xl ${rpt.bg} ${rpt.color} group-hover:scale-110 transition-transform`}><rpt.icon className="w-6 h-6"/></div><div><h3 className="font-bold text-slate-900 text-lg">{rpt.title}</h3><p className="text-slate-400 text-sm mt-0.5">Generate PDF</p></div><div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0"><Download className="w-5 h-5 text-slate-300"/></div></div>))}</div><div className="grid grid-cols-1 lg:grid-cols-3 gap-8"><Card title="Profit Trend" className="lg:col-span-2" delay={300}><div className="h-64 md:h-80 w-full"><ResponsiveContainer><AreaChart data={profitTrendData}><defs><linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/><XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, dy: 10}}/><YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} tickFormatter={(v) => `${v/1000}k`}/><Tooltip contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}} formatter={(value: number) => [formatCurrency(value), 'Net Profit']}/><Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" /></AreaChart></ResponsiveContainer></div></Card><Card title="Customer Volume Share" className="lg:col-span-1 min-h-[300px]" delay={400}><ResponsiveContainer width="100%" height={300}><PieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">{pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}</Pie><Tooltip formatter={(val:number) => formatGrams(val)} contentStyle={{borderRadius: '8px'}} /><Legend verticalAlign="bottom" height={36}/></PieChart></ResponsiveContainer></Card></div></div>
+      <div className="space-y-8"><SectionHeader title="Analytics & Reports" subtitle="Deep dive into your business performance." action={<div className="flex gap-2 items-center"><ExportMenu onExport={(t) => addToast('SUCCESS', 'For detailed exports, use specific sections or Generate PDF below.')} />{renderDateFilter()}</div>}/><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatsCard title="Inventory Turnover" value={`${turnoverStats.turnoverRatio.toFixed(2)}x`} subValue="Ratio (COGS / Avg Inv)" icon={Activity} isActive /><StatsCard title="Avg Days to Sell" value={`${Math.round(turnoverStats.avgDaysToSell)} Days`} subValue="Velocity" icon={Timer} /><StatsCard title="Realized Profit" value={formatCurrency(realizedProfit)} subValue="From Sales" icon={Wallet} /><div className="bg-slate-900 rounded-2xl p-6 text-white relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 right-0 w-24 h-24 bg-gold-500/20 rounded-full blur-3xl -mr-8 -mt-8"></div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Unrealized Profit (Est)</p><div className="flex items-end gap-2 mb-2"><input type="number" placeholder="Mkt Rate..." value={marketRate} onChange={(e) => setMarketRate(e.target.value)} className="w-24 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white focus:border-gold-500 outline-none"/></div><h3 className={`text-2xl font-mono font-bold ${unrealizedProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{hasRate ? formatCurrency(unrealizedProfit) : '---'}</h3></div></div><div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">{[{ id: 'CUSTOMER', title: 'Customer Report', icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },{ id: 'SUPPLIER', title: 'Supplier Report', icon: Factory, color: 'text-blue-600', bg: 'bg-blue-50' },{ id: 'CONSOLIDATED', title: 'Full Audit', icon: FileText, color: 'text-gold-600', bg: 'bg-gold-50' }].map((rpt, i) => (<div key={rpt.id} onClick={() => {}} className="group bg-white p-6 rounded-2xl border border-slate-100 shadow-card hover:shadow-lg transition-all cursor-pointer flex items-center gap-5 animate-slide-up" style={{ animationDelay: `${i*100}ms` }}><div className={`p-4 rounded-xl ${rpt.bg} ${rpt.color} group-hover:scale-110 transition-transform`}><rpt.icon className="w-6 h-6"/></div><div><h3 className="font-bold text-slate-900 text-lg">{rpt.title}</h3><p className="text-slate-400 text-sm mt-0.5">Generate PDF</p></div><div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0"><Download className="w-5 h-5 text-slate-300"/></div></div>))}</div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <Card title="Profit Trend" className="lg:col-span-2" delay={300}><div className="h-64 md:h-80 w-full"><ResponsiveContainer><AreaChart data={profitTrendData}><defs><linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/><XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, dy: 10}}/><YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} tickFormatter={(v) => `${v/1000}k`}/><Tooltip contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}} formatter={(value: number) => [formatCurrency(value), 'Net Profit']}/><Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" /></AreaChart></ResponsiveContainer></div></Card>
+          
+          {/* Enhanced Professional Donut Chart */}
+          <Card title="Customer Volume Share" className="lg:col-span-1 min-h-[400px]" delay={400}>
+                <div className="h-[350px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                            <Pie 
+                                activeIndex={activeIndex}
+                                activeShape={renderActiveShape}
+                                data={pieData} 
+                                cx="50%" 
+                                cy="50%" 
+                                innerRadius={70} 
+                                outerRadius={100} 
+                                paddingAngle={4} 
+                                dataKey="value"
+                                onMouseEnter={onPieEnter}
+                                stroke="none"
+                            >
+                                {pieData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="stroke-white stroke-2" />
+                                ))}
+                            </Pie>
+                            <Tooltip 
+                                content={({ active, payload }) => {
+                                    if (active && payload && payload.length) {
+                                        return (
+                                            <div className="bg-white/90 backdrop-blur-md p-3 border border-slate-100 shadow-xl rounded-xl">
+                                                <p className="font-bold text-slate-800 text-sm mb-1">{payload[0].name}</p>
+                                                <p className="text-gold-600 font-mono font-bold">{formatGrams(payload[0].value as number)}</p>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                }}
+                            />
+                            <Legend 
+                                layout="vertical" 
+                                verticalAlign="middle" 
+                                align="right"
+                                iconType="circle"
+                                wrapperStyle={{ fontSize: '11px', fontWeight: 500, color: '#64748b' }}
+                            />
+                        </PieChart>
+                    </ResponsiveContainer>
+                </div>
+          </Card>
+      </div></div>
       );
   }
 
@@ -867,7 +984,18 @@ function App() {
                                           <td className="px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-transparent group-hover:border-slate-100">
                                               <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border ${inv.type === 'PURCHASE' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-green-50 text-green-600 border-green-100'}`}>{inv.type === 'PURCHASE' ? 'In' : 'Out'}</span>
                                           </td>
-                                          <td className="px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-transparent group-hover:border-slate-100 font-medium text-slate-900 truncate max-w-[150px]">{inv.partyName}</td>
+                                          <td className="px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-transparent group-hover:border-slate-100 font-medium text-slate-900 truncate max-w-[150px]">
+                                              <div className="flex items-center justify-between gap-2 group/edit">
+                                                  <span className="truncate">{inv.partyName}</span>
+                                                  <button 
+                                                    onClick={() => handleInitEditName(inv.id, inv.partyName)}
+                                                    className="opacity-0 group-hover/edit:opacity-100 p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600 transition-all"
+                                                    title="Edit Name"
+                                                  >
+                                                      <Edit2 className="w-3 h-3"/>
+                                                  </button>
+                                              </div>
+                                          </td>
                                           <td className="px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-transparent group-hover:border-slate-100 font-mono text-slate-600 text-right">{formatGrams(inv.quantityGrams)}</td>
                                           <td className="px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-transparent group-hover:border-slate-100 font-mono text-slate-500 text-right">{formatCurrency(inv.ratePerGram).replace('.00','')}</td>
                                           <td className="px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-transparent group-hover:border-slate-100 font-mono text-slate-500 text-right">
@@ -962,6 +1090,51 @@ function App() {
                     <div className="flex gap-3">
                         <button onClick={() => { setShowDeleteModal(false); setDeletePassword(''); }} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-colors text-sm">Cancel</button>
                         <button onClick={confirmDelete} className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-600/20 text-sm">Delete Record</button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* Edit Name Modal */}
+        {showEditNameModal && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+                <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-slate-200 animate-slide-up">
+                    <div className="flex flex-col items-center text-center gap-3 mb-6">
+                        <div className="w-12 h-12 rounded-full bg-gold-50 text-gold-500 flex items-center justify-center">
+                            <Edit2 className="w-6 h-6"/>
+                        </div>
+                        <div>
+                             <h3 className="text-lg font-bold text-slate-900">Edit Party Name</h3>
+                             <p className="text-xs text-slate-500 mt-1">Authenticate to update record details.</p>
+                        </div>
+                    </div>
+                    
+                    <div className="space-y-4 mb-4">
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block text-left">New Name</label>
+                            <input 
+                                type="text" 
+                                placeholder="Enter Correct Name" 
+                                value={newPartyName}
+                                onChange={(e) => setNewPartyName(e.target.value)}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block text-left">Admin Password</label>
+                            <input 
+                                type="password" 
+                                placeholder="Enter Password" 
+                                value={editNamePassword}
+                                onChange={(e) => setEditNamePassword(e.target.value)}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-center focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                        <button onClick={() => { setShowEditNameModal(false); setEditNamePassword(''); }} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-colors text-sm">Cancel</button>
+                        <button onClick={confirmNameUpdate} className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-lg shadow-slate-900/20 text-sm">Update Name</button>
                     </div>
                 </div>
             </div>

@@ -112,6 +112,22 @@ export const deleteOrderFromSupabase = async (id: string) => {
 };
 
 /**
+ * Updates the party name of an order by ID.
+ */
+export const updateOrderPartyName = async (id: string, newName: string) => {
+  const { error } = await supabase
+    .from('orders')
+    .update({ party_name: newName })
+    .eq('id', id);
+    
+  if (error) {
+    console.error("Update failed", error);
+    return false;
+  }
+  return true;
+};
+
+/**
  * Bulk inserts orders (used for migrating local storage to cloud).
  */
 export const bulkInsertOrders = async (invoices: Invoice[]) => {
