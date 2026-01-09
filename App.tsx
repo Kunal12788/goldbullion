@@ -17,8 +17,8 @@ import autoTable from "jspdf-autotable";
 import { 
   ArrowUpRight, Scale, Coins, Trash2, TrendingUp, AlertTriangle, 
   FileSpreadsheet, FileText, Factory, Lock, ArrowRightLeft, LineChart as LineChartIcon, 
-  Download, Users, ChevronRight, Crown, Briefcase, 
-  Timer, Activity, Wallet, FileDown, CheckCircle, CloudCog, RefreshCw, CloudUpload, Server, Database, Info, Edit2
+  Download, Users, ChevronRight, ChevronLeft, Crown, Briefcase, 
+  Timer, Activity, Wallet, FileDown, CheckCircle, CloudCog, RefreshCw, CloudUpload, Server, Database, Info, Edit2, Eye
 } from 'lucide-react';
 import { 
   AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Sector 
@@ -671,6 +671,39 @@ function App() {
   };
   
   const CustomerInsightsView = () => {
+    const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
+
+    // Filter unique customers who have made purchases (SALES) in the current date range
+    const activeCustomers = useMemo(() => {
+        const stats: Record<string, { count: number, totalVol: number }> = {};
+        filteredInvoices.filter(i => i.type === 'SALE').forEach(inv => {
+            if(!stats[inv.partyName]) stats[inv.partyName] = { count: 0, totalVol: 0 };
+            stats[inv.partyName].count += 1;
+            stats[inv.partyName].totalVol += inv.quantityGrams;
+        });
+        return Object.entries(stats)
+            .map(([name, val]) => ({ name, ...val }))
+            .sort((a,b) => b.totalVol - a.totalVol);
+    }, [filteredInvoices]);
+
+    // Calculate aggregated stats for the selected customer
+    const selectedCustomerStats = useMemo(() => {
+        if (!selectedCustomer) return null;
+        const txs = filteredInvoices.filter(i => i.type === 'SALE' && i.partyName === selectedCustomer);
+        const totalVol = txs.reduce((sum, i) => sum + i.quantityGrams, 0);
+        const totalRev = txs.reduce((sum, i) => sum + i.taxableAmount, 0);
+        const totalProfit = txs.reduce((sum, i) => sum + (i.profit || 0), 0);
+        const avgMargin = totalRev > 0 ? (totalProfit / totalRev) * 100 : 0;
+        
+        return {
+            totalVol,
+            totalRev,
+            totalProfit,
+            avgMargin,
+            txs: txs.sort((a,b) => b.date.localeCompare(a.date)) // Recent first
+        };
+    }, [selectedCustomer, filteredInvoices]);
+
     return (
         <div className="space-y-8 animate-enter">
             <SectionHeader title="Customer Intelligence" subtitle="Analyze purchasing patterns and profitability." action={<div className="flex gap-2 items-center"><ExportMenu onExport={handleCustomerExport} />{renderDateFilter()}</div>}/>
@@ -716,46 +749,118 @@ function App() {
             </Card>
             
             <Card title="Detailed Sales Ledger">
-                 <div className="overflow-x-auto">
-                     <table className="w-full text-sm text-left">
-                         <thead className="text-slate-500 bg-slate-50/50">
-                             <tr>
-                                 <th className="px-4 py-3">Date</th>
-                                 <th className="px-4 py-3">Customer</th>
-                                 <th className="px-4 py-3 text-right">Volume (g)</th>
-                                 <th className="px-4 py-3 text-right">Rate (INR/g)</th>
-                                 <th className="px-4 py-3 text-right">Sale Value (Ex GST)</th>
-                                 <th className="px-4 py-3 text-right">Profit</th>
-                                 <th className="px-4 py-3 text-right">Margin %</th>
-                             </tr>
-                         </thead>
-                         <tbody>
-                             {filteredInvoices.filter(i => i.type === 'SALE').sort((a,b) => b.date.localeCompare(a.date)).map((sale, idx) => {
-                                 const margin = sale.taxableAmount > 0 ? ((sale.profit || 0) / sale.taxableAmount) * 100 : 0;
-                                 return (
-                                     <tr key={sale.id} className="hover:bg-slate-50 border-b border-slate-50">
-                                         <td className="px-4 py-3 text-slate-500 font-mono text-xs">{sale.date}</td>
-                                         <td className="px-4 py-3 font-medium text-slate-900">{sale.partyName}</td>
-                                         <td className="px-4 py-3 text-right font-mono">{formatGrams(sale.quantityGrams)}</td>
-                                         <td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(sale.ratePerGram)}</td>
-                                         <td className="px-4 py-3 text-right font-mono text-slate-700">{formatCurrency(sale.taxableAmount)}</td>
-                                         <td className={`px-4 py-3 text-right font-mono font-bold ${(sale.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                             {formatCurrency(sale.profit || 0)}
-                                         </td>
-                                         <td className="px-4 py-3 text-right font-mono">
-                                             <span className={`px-2 py-1 rounded text-[10px] font-bold ${margin >= 1 ? 'bg-green-100 text-green-700' : margin >= 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
-                                                 {margin.toFixed(2)}%
-                                             </span>
-                                         </td>
-                                     </tr>
-                                 );
-                             })}
-                             {filteredInvoices.filter(i => i.type === 'SALE').length === 0 && (
-                                 <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400 italic">No sales found in this period.</td></tr>
-                             )}
-                         </tbody>
-                     </table>
-                 </div>
+                {!selectedCustomer ? (
+                    // Master View: List of Customers
+                    <div className="space-y-4">
+                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-sm text-slate-600 flex items-center gap-2">
+                             <Info className="w-4 h-4 text-blue-500"/> Select a customer to view their detailed transaction history and performance metrics.
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="text-slate-500 bg-slate-50/50">
+                                    <tr>
+                                        <th className="px-4 py-3">Customer Name</th>
+                                        <th className="px-4 py-3 text-center">Transactions</th>
+                                        <th className="px-4 py-3 text-right">Total Volume (Period)</th>
+                                        <th className="px-4 py-3 text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {activeCustomers.length === 0 ? (
+                                        <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400 italic">No active customers in this period.</td></tr>
+                                    ) : (
+                                        activeCustomers.map((c, i) => (
+                                            <tr key={i} className="hover:bg-slate-50 border-b border-slate-50 group cursor-pointer" onClick={() => setSelectedCustomer(c.name)}>
+                                                <td className="px-4 py-3 font-medium text-slate-900 group-hover:text-gold-600 transition-colors">{c.name}</td>
+                                                <td className="px-4 py-3 text-center text-slate-500">{c.count}</td>
+                                                <td className="px-4 py-3 text-right font-mono font-bold text-slate-700">{formatGrams(c.totalVol)}</td>
+                                                <td className="px-4 py-3 text-center">
+                                                    <button className="p-2 bg-slate-100 rounded-lg text-slate-400 group-hover:bg-gold-500 group-hover:text-white transition-all">
+                                                        <ChevronRight className="w-4 h-4"/>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ) : (
+                    // Detail View: Specific Customer History
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex items-center justify-between">
+                            <button 
+                                onClick={() => setSelectedCustomer(null)}
+                                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                            >
+                                <ChevronLeft className="w-4 h-4"/> Back to List
+                            </button>
+                            <h3 className="text-xl font-bold text-slate-800">{selectedCustomer}</h3>
+                        </div>
+
+                        {/* Summary Header for Selected Customer */}
+                        {selectedCustomerStats && (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-gradient-to-r from-slate-900 to-slate-800 rounded-xl text-white shadow-lg">
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Stock Bought</p>
+                                    <p className="text-2xl font-mono font-bold text-gold-400">{formatGrams(selectedCustomerStats.totalVol)}</p>
+                                    <p className="text-xs text-slate-500">In selected period</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Revenue</p>
+                                    <p className="text-2xl font-mono font-bold">{formatCurrency(selectedCustomerStats.totalRev)}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Profit</p>
+                                    <p className="text-2xl font-mono font-bold text-green-400">{formatCurrency(selectedCustomerStats.totalProfit)}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Avg Margin</p>
+                                    <p className={`text-2xl font-mono font-bold ${selectedCustomerStats.avgMargin < 1 ? 'text-red-400' : 'text-green-400'}`}>
+                                        {selectedCustomerStats.avgMargin.toFixed(2)}%
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="text-slate-500 bg-slate-50/50">
+                                    <tr>
+                                        <th className="px-4 py-3">Date</th>
+                                        <th className="px-4 py-3 text-right">Volume (g)</th>
+                                        <th className="px-4 py-3 text-right">Rate (INR/g)</th>
+                                        <th className="px-4 py-3 text-right">Sale Value (Ex GST)</th>
+                                        <th className="px-4 py-3 text-right">Profit</th>
+                                        <th className="px-4 py-3 text-right">Margin %</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {selectedCustomerStats?.txs.map((sale) => {
+                                        const margin = sale.taxableAmount > 0 ? ((sale.profit || 0) / sale.taxableAmount) * 100 : 0;
+                                        return (
+                                            <tr key={sale.id} className="hover:bg-slate-50 border-b border-slate-50">
+                                                <td className="px-4 py-3 text-slate-500 font-mono text-xs">{sale.date}</td>
+                                                <td className="px-4 py-3 text-right font-mono">{formatGrams(sale.quantityGrams)}</td>
+                                                <td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(sale.ratePerGram)}</td>
+                                                <td className="px-4 py-3 text-right font-mono text-slate-700">{formatCurrency(sale.taxableAmount)}</td>
+                                                <td className={`px-4 py-3 text-right font-mono font-bold ${(sale.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                    {formatCurrency(sale.profit || 0)}
+                                                </td>
+                                                <td className="px-4 py-3 text-right font-mono">
+                                                    <span className={`px-2 py-1 rounded text-[10px] font-bold ${margin >= 1 ? 'bg-green-100 text-green-700' : margin >= 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                                                        {margin.toFixed(2)}%
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
             </Card>
         </div>
     );
