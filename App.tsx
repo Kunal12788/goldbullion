@@ -117,19 +117,26 @@ function App() {
 
   // --- CORE LOGIC: Recalculate State from Transactions ---
   const recalculateAllData = (allInvoices: Invoice[]) => {
-    // FIX: Strict FIFO Engine
-    // 1. Sort by Date (String Comparison YYYY-MM-DD for precision)
-    // 2. Sort by Type (PURCHASE strictly before SALE on same day)
-    // 3. Sort by ID (Deterministic tie-breaker)
+    // FIX: Strict FIFO Engine with Timestamp Sequencing
+    // 1. Sort by Business Date (YYYY-MM-DD)
+    // 2. Sort by CreatedAt Timestamp (Strict Chronological Order within the day)
+    // 3. Fallback to ID for stability if timestamps match or missing
+    //
+    // CRITICAL CHANGE: We no longer force Purchases before Sales on the same day.
+    // The exact sequence of entry determines the FIFO application.
+    
     const sorted = [...allInvoices].sort((a, b) => {
-        // String comparison is safer than Date object for ISO dates to avoid timezone shifts
+        // 1. Primary: Business Date
         const dateComp = a.date.localeCompare(b.date);
         if (dateComp !== 0) return dateComp;
         
-        // Critical: Process IN (Purchase) before OUT (Sale) for same-day transactions
-        if (a.type === 'PURCHASE' && b.type === 'SALE') return -1;
-        if (a.type === 'SALE' && b.type === 'PURCHASE') return 1;
+        // 2. Secondary: Transaction Timestamp (Strict Sequencing)
+        if (a.createdAt && b.createdAt) {
+            const timeComp = a.createdAt.localeCompare(b.createdAt);
+            if (timeComp !== 0) return timeComp;
+        }
         
+        // 3. Fallback: ID (Deterministic tie-breaker)
         return a.id.localeCompare(b.id);
     });
 
@@ -154,6 +161,11 @@ function App() {
             let totalCOGS = 0;
             const consumptionLog: string[] = [];
             
+            // Validation: Warn if sequencing might be ambiguous
+            if (!inv.createdAt) {
+                consumptionLog.push("⚠️ WARNING: No Timestamp. Sequence assumed by ID.");
+            }
+
             for (const batch of currentInventory) {
                 if (remainingToSell <= 0) break;
                 
@@ -179,7 +191,7 @@ function App() {
 
             // If we ran out of stock but still needed to sell (Negative Inventory Scenario)
             if (remainingToSell > 0.0001) {
-                consumptionLog.push(`WARNING: ${formatGrams(remainingToSell)} sold without stock! (Zero Cost Assumed)`);
+                consumptionLog.push(`⚠️ STOCKOUT: ${formatGrams(remainingToSell)} sold without inventory!`);
             }
 
             const profit = (inv.taxableAmount || (inv.quantityGrams * inv.ratePerGram)) - totalCOGS;
@@ -642,6 +654,16 @@ function App() {
     );
   }
 
+  const SupplierInsightsView = () => {
+    return (
+        <div className="space-y-8 animate-enter">
+            <SectionHeader title="Supplier Insights" subtitle="Track supplier performance and rate volatility." action={<div className="flex gap-2 items-center"><ExportMenu onExport={handleSupplierExport} />{renderDateFilter()}</div>}/>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">{supplierData.slice(0, 3).map((s, i) => (<div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-card flex flex-col gap-4 relative overflow-hidden group hover:shadow-lg transition-all"><div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-500/10 to-transparent rounded-full -mr-8 -mt-8 group-hover:scale-110 transition-transform"></div><div className="flex justify-between items-start z-10"><div><h3 className="font-bold text-lg text-slate-900 truncate max-w-[150px]">{s.name}</h3><p className="text-xs text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded-md inline-block mt-1">{s.volatility > 50 ? 'High Volatility' : 'Stable'}</p></div><div className="p-2 bg-slate-50 rounded-lg text-slate-400"><Factory className="w-5 h-5"/></div></div><div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4 z-10"><div><p className="text-[10px] uppercase text-slate-400 font-bold">Total Bought</p><p className="font-mono font-bold text-slate-700">{formatGrams(s.totalGramsPurchased)}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Avg Rate</p><p className="font-mono font-bold text-slate-700">{formatCurrency(s.avgRate)}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Tx Count</p><p className="font-mono font-bold text-slate-700">{s.txCount}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Volatility</p><p className="font-mono font-bold text-slate-700">{formatCurrency(s.volatility)}</p></div></div></div>))}</div>
+            <Card title="Detailed Supplier Ledger"><div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="text-slate-500 bg-slate-50/50"><tr><th className="px-4 py-3">Supplier</th><th className="px-4 py-3 text-center">Tx Count</th><th className="px-4 py-3 text-right">Volume (g)</th><th className="px-4 py-3 text-right">Avg Rate</th><th className="px-4 py-3 text-right">Min Rate</th><th className="px-4 py-3 text-right">Max Rate</th><th className="px-4 py-3 text-right">Volatility</th></tr></thead><tbody>{supplierData.map((s, i) => (<tr key={i} className="hover:bg-slate-50 border-b border-slate-50"><td className="px-4 py-3 font-bold text-slate-800">{s.name}</td><td className="px-4 py-3 text-center text-slate-500">{s.txCount}</td><td className="px-4 py-3 text-right font-mono">{formatGrams(s.totalGramsPurchased)}</td><td className="px-4 py-3 text-right font-mono text-blue-600">{formatCurrency(s.avgRate)}</td><td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(s.minRate)}</td><td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(s.maxRate)}</td><td className="px-4 py-3 text-right font-mono font-bold text-slate-700">{formatCurrency(s.volatility)}</td></tr>))}</tbody></table></div></Card>
+        </div>
+    );
+  }
+
   const PriceAnalysisView = () => {
        const priceMetrics = useMemo(() => {
           const purchases = filteredInvoices.filter(i => i.type === 'PURCHASE');
@@ -683,10 +705,6 @@ function App() {
       return (
       <div className="space-y-8"><SectionHeader title="Analytics & Reports" subtitle="Deep dive into your business performance." action={<div className="flex gap-2 items-center"><ExportMenu onExport={(t) => addToast('SUCCESS', 'For detailed exports, use specific sections or Generate PDF below.')} />{renderDateFilter()}</div>}/><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatsCard title="Inventory Turnover" value={`${turnoverStats.turnoverRatio.toFixed(2)}x`} subValue="Ratio (COGS / Avg Inv)" icon={Activity} isActive /><StatsCard title="Avg Days to Sell" value={`${Math.round(turnoverStats.avgDaysToSell)} Days`} subValue="Velocity" icon={Timer} /><StatsCard title="Realized Profit" value={formatCurrency(realizedProfit)} subValue="From Sales" icon={Wallet} /><div className="bg-slate-900 rounded-2xl p-6 text-white relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 right-0 w-24 h-24 bg-gold-500/20 rounded-full blur-3xl -mr-8 -mt-8"></div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Unrealized Profit (Est)</p><div className="flex items-end gap-2 mb-2"><input type="number" placeholder="Mkt Rate..." value={marketRate} onChange={(e) => setMarketRate(e.target.value)} className="w-24 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white focus:border-gold-500 outline-none"/></div><h3 className={`text-2xl font-mono font-bold ${unrealizedProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{hasRate ? formatCurrency(unrealizedProfit) : '---'}</h3></div></div><div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">{[{ id: 'CUSTOMER', title: 'Customer Report', icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },{ id: 'SUPPLIER', title: 'Supplier Report', icon: Factory, color: 'text-blue-600', bg: 'bg-blue-50' },{ id: 'CONSOLIDATED', title: 'Full Audit', icon: FileText, color: 'text-gold-600', bg: 'bg-gold-50' }].map((rpt, i) => (<div key={rpt.id} onClick={() => {}} className="group bg-white p-6 rounded-2xl border border-slate-100 shadow-card hover:shadow-lg transition-all cursor-pointer flex items-center gap-5 animate-slide-up" style={{ animationDelay: `${i*100}ms` }}><div className={`p-4 rounded-xl ${rpt.bg} ${rpt.color} group-hover:scale-110 transition-transform`}><rpt.icon className="w-6 h-6"/></div><div><h3 className="font-bold text-slate-900 text-lg">{rpt.title}</h3><p className="text-slate-400 text-sm mt-0.5">Generate PDF</p></div><div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0"><Download className="w-5 h-5 text-slate-300"/></div></div>))}</div><div className="grid grid-cols-1 lg:grid-cols-3 gap-8"><Card title="Profit Trend" className="lg:col-span-2" delay={300}><div className="h-64 md:h-80 w-full"><ResponsiveContainer><AreaChart data={profitTrendData}><defs><linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/><XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, dy: 10}}/><YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} tickFormatter={(v) => `${v/1000}k`}/><Tooltip contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}} formatter={(value: number) => [formatCurrency(value), 'Net Profit']}/><Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" /></AreaChart></ResponsiveContainer></div></Card><Card title="Customer Volume Share" className="lg:col-span-1 min-h-[300px]" delay={400}><ResponsiveContainer width="100%" height={300}><PieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">{pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}</Pie><Tooltip formatter={(val:number) => formatGrams(val)} contentStyle={{borderRadius: '8px'}} /><Legend verticalAlign="bottom" height={36}/></PieChart></ResponsiveContainer></Card></div></div>
       );
-  }
-
-  const SupplierInsightsView = () => {
-    return (<div className="space-y-6 animate-enter"><SectionHeader title="Supplier Performance" subtitle="Track procurement costs and volatility." action={<div className="flex gap-2 items-center"><ExportMenu onExport={handleSupplierExport} />{renderDateFilter()}</div>}/><div className="grid grid-cols-1 md:grid-cols-2 gap-6">{supplierData.slice(0, 4).map((s, i) => (<div key={i} className="bg-white p-6 rounded-2xl shadow-card border border-slate-100 flex flex-col justify-between"><div className="flex justify-between items-start mb-4"><div><h3 className="font-bold text-lg text-slate-900">{s.name}</h3><p className="text-xs text-slate-500 uppercase tracking-wide">Primary Supplier</p></div><div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Factory className="w-5 h-5"/></div></div><div className="space-y-3"><div className="flex justify-between text-sm"><span className="text-slate-500">Total Volume</span><span className="font-mono font-bold">{formatGrams(s.totalGramsPurchased)}</span></div><div className="flex justify-between text-sm"><span className="text-slate-500">Avg Rate</span><span className="font-mono font-bold text-blue-600">{formatCurrency(s.avgRate)}</span></div><div className="flex justify-between text-sm"><span className="text-slate-500">Volatility</span><span className="font-mono font-bold text-amber-600">± {formatCurrency(s.volatility)}</span></div></div></div>))}</div><div className="grid grid-cols-1 lg:grid-cols-2 gap-8"><Card title="Volume Dependency (Grams)" delay={300} className="min-h-[350px]"><ResponsiveContainer width="100%" height={300}><PieChart><Pie data={useMemo(() => { const sorted = [...supplierData].sort((a,b) => b.totalGramsPurchased - a.totalGramsPurchased); const mapped = sorted.map(s => ({ name: s.name, value: s.totalGramsPurchased })); return [ ...mapped.slice(0,5), mapped.slice(5).length > 0 ? { name: 'Others', value: mapped.slice(5).reduce((a,c)=>a+c.value,0) } : null ].filter(Boolean); }, [supplierData])} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value"><Cell fill="#3b82f6" /><Cell fill="#06b6d4" /><Cell fill="#10b981" /><Cell fill="#f59e0b" /><Cell fill="#6366f1" /></Pie><Tooltip formatter={(val:number) => formatGrams(val)} /><Legend/></PieChart></ResponsiveContainer></Card><Card title="Capital Allocation (Cost)" delay={400} className="min-h-[350px]"><ResponsiveContainer width="100%" height={300}><PieChart><Pie data={useMemo(() => { const sorted = [...supplierData].sort((a,b) => (b.totalGramsPurchased*b.avgRate) - (a.totalGramsPurchased*a.avgRate)); const mapped = sorted.map(s => ({ name: s.name, value: s.totalGramsPurchased*s.avgRate })); return [ ...mapped.slice(0,5), mapped.slice(5).length > 0 ? { name: 'Others', value: mapped.slice(5).reduce((a,c)=>a+c.value,0) } : null ].filter(Boolean); }, [supplierData])} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value"><Cell fill="#3b82f6" /><Cell fill="#06b6d4" /><Cell fill="#10b981" /><Cell fill="#f59e0b" /><Cell fill="#6366f1" /></Pie><Tooltip formatter={(val:number) => formatCurrency(val)} /><Legend/></PieChart></ResponsiveContainer></Card></div></div>);
   }
 
   const BusinessLedgerView = () => {

@@ -123,9 +123,17 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ onAdd, currentStock, lockDate
     if (formData.type === 'SALE' && qty > currentStock) { setError(`Insufficient Inventory! Avail: ${currentStock.toFixed(3)}g`); return; }
 
     onAdd({
-        id: generateId(), date: formData.date, type: formData.type, partyName: formData.partyName,
-        quantityGrams: qty, ratePerGram: parseFloat(formData.ratePerGram), gstRate: parseFloat(formData.gstRate),
-        gstAmount: gstAmt, taxableAmount: taxable, totalAmount: total
+        id: generateId(), 
+        date: formData.date, 
+        type: formData.type, 
+        partyName: formData.partyName,
+        quantityGrams: qty, 
+        ratePerGram: parseFloat(formData.ratePerGram), 
+        gstRate: parseFloat(formData.gstRate),
+        gstAmount: gstAmt, 
+        taxableAmount: taxable, 
+        totalAmount: total,
+        createdAt: new Date().toISOString() // STRICT ORDERING: Capture timestamp
     });
     setFormData({ date: new Date().toISOString().split('T')[0], type: 'PURCHASE', partyName: '', quantityGrams: '', ratePerGram: '', gstRate: '3' });
     setOcrText('');

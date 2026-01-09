@@ -42,10 +42,21 @@ export const downloadCSV = (csvContent: string, filename: string) => {
  * Replays transactions up to a specific date to calculate the FIFO inventory value at that time.
  */
 export const calculateInventoryValueOnDate = (invoices: Invoice[], targetDate: string): number => {
-  // Filter invoices up to targetDate and sort strictly by date (oldest first)
+  // Filter invoices up to targetDate and sort strictly by date + timestamp (oldest first)
   const relevantInvoices = invoices
     .filter(inv => inv.date <= targetDate)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    .sort((a, b) => {
+        const dateComp = a.date.localeCompare(b.date);
+        if (dateComp !== 0) return dateComp;
+        
+        // Strict same-day ordering based on createdAt
+        if (a.createdAt && b.createdAt) {
+            const timeComp = a.createdAt.localeCompare(b.createdAt);
+            if (timeComp !== 0) return timeComp;
+        }
+        
+        return a.id.localeCompare(b.id);
+    });
 
   // Simulation state: Track batches { quantity, cost }
   // We use a mutable array to simulate the FIFO stack

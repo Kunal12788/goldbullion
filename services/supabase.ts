@@ -33,7 +33,8 @@ const mapOrderFromDB = (o: any): Invoice => ({
   taxableAmount: Number(o.taxable_amount),
   totalAmount: Number(o.total_amount),
   cogs: Number(o.cogs || 0),
-  profit: Number(o.profit || 0)
+  profit: Number(o.profit || 0),
+  createdAt: o.created_at // Crucial for FIFO ordering
 });
 
 /**
@@ -52,6 +53,7 @@ const mapOrderToDB = (invoice: Invoice, userId?: string) => ({
   total_amount: invoice.totalAmount,
   cogs: invoice.cogs || 0,
   profit: invoice.profit || 0,
+  created_at: invoice.createdAt || new Date().toISOString(),
   updated_at: new Date().toISOString()
 });
 

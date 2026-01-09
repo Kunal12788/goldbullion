@@ -13,6 +13,9 @@ export interface Invoice {
   taxableAmount: number; // Qty * Rate
   totalAmount: number; // Taxable + GST
   
+  // System Fields
+  createdAt?: string; // ISO timestamp for strict ordering
+  
   // Specific to Sales (Calculated via FIFO)
   cogs?: number; // Cost of Goods Sold
   profit?: number; // Total Amount (Excl GST) - COGS
