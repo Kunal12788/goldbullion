@@ -16,7 +16,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { 
   ArrowUpRight, Scale, Coins, Trash2, TrendingUp, AlertTriangle, 
-  FileSpreadsheet, FileText, Factory, Lock, ArrowRightLeft, LineChart, 
+  FileSpreadsheet, FileText, Factory, Lock, ArrowRightLeft, LineChart as LineChartIcon, 
   Download, Users, ChevronRight, Crown, Briefcase, 
   Timer, Activity, Wallet, FileDown, CheckCircle, CloudCog, RefreshCw, CloudUpload, Server, Database, Info, Edit2
 } from 'lucide-react';
@@ -378,7 +378,7 @@ function App() {
                 behaviorPattern: pattern
             };
         })
-        .sort((a,b) => b.profitContribution - a.profitContribution);
+        .sort((a,b) => b.totalGrams - a.totalGrams); // Sort by Volume (Grams) Purchased
 
       const pTrend = [];
       const start = new Date(dateRange.start);
@@ -675,7 +675,88 @@ function App() {
         <div className="space-y-8 animate-enter">
             <SectionHeader title="Customer Intelligence" subtitle="Analyze purchasing patterns and profitability." action={<div className="flex gap-2 items-center"><ExportMenu onExport={handleCustomerExport} />{renderDateFilter()}</div>}/>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">{customerData.slice(0, 3).map((c, i) => (<div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-card flex flex-col gap-4 relative overflow-hidden group hover:shadow-lg transition-all"><div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-purple-500/10 to-transparent rounded-full -mr-8 -mt-8 group-hover:scale-110 transition-transform"></div><div className="flex justify-between items-start z-10"><div><h3 className="font-bold text-lg text-slate-900 truncate max-w-[150px]">{c.name}</h3><p className="text-xs text-purple-600 font-bold bg-purple-50 px-2 py-1 rounded-md inline-block mt-1">{c.behaviorPattern}</p></div><div className="p-2 bg-slate-50 rounded-lg text-slate-400"><Users className="w-5 h-5"/></div></div><div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4 z-10"><div><p className="text-[10px] uppercase text-slate-400 font-bold">Total Grams</p><p className="font-mono font-bold text-slate-700">{formatGrams(c.totalGrams)}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Total Revenue</p><p className="font-mono font-bold text-slate-700">{formatCurrency(c.totalSpend)}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Tx Count</p><p className="font-mono font-bold text-slate-700">{c.txCount}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Avg Price/g</p><p className="font-mono font-bold text-slate-700">{formatCurrency(c.avgSellingPrice || 0)}</p></div></div></div>))}</div>
-            <Card title="Detailed Customer Ledger"><div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="text-slate-500 bg-slate-50/50"><tr><th className="px-4 py-3">Customer</th><th className="px-4 py-3 text-center">Frequency</th><th className="px-4 py-3 text-right">Volume (g)</th><th className="px-4 py-3 text-right">Revenue (Ex GST)</th><th className="px-4 py-3 text-right">Avg Price/g</th><th className="px-4 py-3 text-right">Profit Contribution</th></tr></thead><tbody>{customerData.map((c, i) => (<tr key={i} className="hover:bg-slate-50 border-b border-slate-50"><td className="px-4 py-3"><p className="font-bold text-slate-800">{c.name}</p><p className="text-xs text-slate-500">{c.behaviorPattern}</p></td><td className="px-4 py-3 text-center text-slate-500">{c.txCount}</td><td className="px-4 py-3 text-right font-mono">{formatGrams(c.totalGrams)}</td><td className="px-4 py-3 text-right font-mono">{formatCurrency(c.totalSpend)}</td><td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(c.avgSellingPrice || 0)}</td><td className="px-4 py-3 text-right font-mono font-bold text-green-600">{formatCurrency(c.profitContribution)}</td></tr>))}</tbody></table></div></Card>
+            <Card title="Top 10 Customer Rankings (By Volume)">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                        <thead className="text-slate-500 bg-slate-50/50">
+                            <tr>
+                                <th className="px-4 py-3 text-center w-16">Rank</th>
+                                <th className="px-4 py-3">Customer</th>
+                                <th className="px-4 py-3 text-center">Frequency</th>
+                                <th className="px-4 py-3 text-right">Volume (g)</th>
+                                <th className="px-4 py-3 text-right">Revenue (Ex GST)</th>
+                                <th className="px-4 py-3 text-right">Avg Price/g</th>
+                                <th className="px-4 py-3 text-right">Profit Contribution</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {customerData.slice(0, 10).map((c, i) => (
+                                <tr key={i} className="hover:bg-slate-50 border-b border-slate-50">
+                                    <td className="px-4 py-3 text-center font-bold text-slate-400">
+                                        {i < 3 ? (
+                                            <span className={`flex items-center justify-center w-6 h-6 rounded-full mx-auto ${i === 0 ? 'bg-gold-100 text-gold-700' : i === 1 ? 'bg-slate-200 text-slate-700' : 'bg-orange-100 text-orange-800'}`}>
+                                                {i + 1}
+                                            </span>
+                                        ) : `#${i + 1}`}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <p className="font-bold text-slate-800">{c.name}</p>
+                                        <p className="text-xs text-slate-500">{c.behaviorPattern}</p>
+                                    </td>
+                                    <td className="px-4 py-3 text-center text-slate-500">{c.txCount}</td>
+                                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-900">{formatGrams(c.totalGrams)}</td>
+                                    <td className="px-4 py-3 text-right font-mono">{formatCurrency(c.totalSpend)}</td>
+                                    <td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(c.avgSellingPrice || 0)}</td>
+                                    <td className="px-4 py-3 text-right font-mono font-bold text-green-600">{formatCurrency(c.profitContribution)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+            
+            <Card title="Detailed Sales Ledger">
+                 <div className="overflow-x-auto">
+                     <table className="w-full text-sm text-left">
+                         <thead className="text-slate-500 bg-slate-50/50">
+                             <tr>
+                                 <th className="px-4 py-3">Date</th>
+                                 <th className="px-4 py-3">Customer</th>
+                                 <th className="px-4 py-3 text-right">Volume (g)</th>
+                                 <th className="px-4 py-3 text-right">Rate (INR/g)</th>
+                                 <th className="px-4 py-3 text-right">Sale Value (Ex GST)</th>
+                                 <th className="px-4 py-3 text-right">Profit</th>
+                                 <th className="px-4 py-3 text-right">Margin %</th>
+                             </tr>
+                         </thead>
+                         <tbody>
+                             {filteredInvoices.filter(i => i.type === 'SALE').sort((a,b) => b.date.localeCompare(a.date)).map((sale, idx) => {
+                                 const margin = sale.taxableAmount > 0 ? ((sale.profit || 0) / sale.taxableAmount) * 100 : 0;
+                                 return (
+                                     <tr key={sale.id} className="hover:bg-slate-50 border-b border-slate-50">
+                                         <td className="px-4 py-3 text-slate-500 font-mono text-xs">{sale.date}</td>
+                                         <td className="px-4 py-3 font-medium text-slate-900">{sale.partyName}</td>
+                                         <td className="px-4 py-3 text-right font-mono">{formatGrams(sale.quantityGrams)}</td>
+                                         <td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(sale.ratePerGram)}</td>
+                                         <td className="px-4 py-3 text-right font-mono text-slate-700">{formatCurrency(sale.taxableAmount)}</td>
+                                         <td className={`px-4 py-3 text-right font-mono font-bold ${(sale.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                             {formatCurrency(sale.profit || 0)}
+                                         </td>
+                                         <td className="px-4 py-3 text-right font-mono">
+                                             <span className={`px-2 py-1 rounded text-[10px] font-bold ${margin >= 1 ? 'bg-green-100 text-green-700' : margin >= 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                                                 {margin.toFixed(2)}%
+                                             </span>
+                                         </td>
+                                     </tr>
+                                 );
+                             })}
+                             {filteredInvoices.filter(i => i.type === 'SALE').length === 0 && (
+                                 <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400 italic">No sales found in this period.</td></tr>
+                             )}
+                         </tbody>
+                     </table>
+                 </div>
+            </Card>
         </div>
     );
   }
@@ -724,97 +805,68 @@ function App() {
       const rate = parseFloat(marketRate);
       const hasRate = !isNaN(rate) && rate > 0;
       const unrealizedProfit = hasRate ? (currentStock * rate) - fifoValue : 0;
-      const pieData = customerData.slice(0, 5).map(c => ({ name: c.name, value: c.totalGrams }));
-      const others = customerData.slice(5).reduce((acc, c) => acc + c.totalGrams, 0);
-      if (others > 0) pieData.push({ name: 'Others', value: others });
-      const COLORS = ['#d19726', '#e4c76d', '#b4761e', '#f5eccb', '#90561a', '#94a3b8'];
+      
+      // Calculate all customers present in the data
+      const allCustomers = useMemo(() => customerData.map(c => c.name), [customerData]);
 
-      // Active Shape for Donut Chart
-      const renderActiveShape = (props: any) => {
-        const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value } = props;
-        return (
-          <g>
-            <text x={cx} y={cy - 10} dy={8} textAnchor="middle" fill="#1e293b" className="text-lg font-bold">
-                {payload.name}
-            </text>
-            <text x={cx} y={cy + 15} dy={8} textAnchor="middle" fill="#64748b" className="text-sm font-mono">
-                {`${(percent * 100).toFixed(1)}%`}
-            </text>
-            <Sector
-              cx={cx}
-              cy={cy}
-              innerRadius={innerRadius}
-              outerRadius={outerRadius + 8}
-              startAngle={startAngle}
-              endAngle={endAngle}
-              fill={fill}
-              className="drop-shadow-lg"
-            />
-            <Sector
-              cx={cx}
-              cy={cy}
-              startAngle={startAngle}
-              endAngle={endAngle}
-              innerRadius={innerRadius - 6}
-              outerRadius={innerRadius}
-              fill={fill}
-              opacity={0.3}
-            />
-          </g>
-        );
-      };
+      // Calculate aggregated total volume per customer for Pie Chart
+      const pieData = useMemo(() => {
+          const stats: Record<string, number> = {};
+          filteredInvoices.forEach(inv => {
+             if (inv.type === 'SALE') {
+                 stats[inv.partyName] = (stats[inv.partyName] || 0) + inv.quantityGrams;
+             }
+          });
+          return Object.entries(stats)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
+      }, [filteredInvoices]);
 
-      const [activeIndex, setActiveIndex] = useState(0);
-      const onPieEnter = (_: any, index: number) => {
-        setActiveIndex(index);
-      };
+      // Extended Green Spectrum Palette for multiple slices
+      const GREEN_SHADES = [
+        '#022c22', '#064e3b', '#065f46', '#047857', '#059669', '#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#0f766e', '#14b8a6', '#2dd4bf'
+      ];
 
       return (
-      <div className="space-y-8"><SectionHeader title="Analytics & Reports" subtitle="Deep dive into your business performance." action={<div className="flex gap-2 items-center"><ExportMenu onExport={(t) => addToast('SUCCESS', 'For detailed exports, use specific sections or Generate PDF below.')} />{renderDateFilter()}</div>}/><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatsCard title="Inventory Turnover" value={`${turnoverStats.turnoverRatio.toFixed(2)}x`} subValue="Ratio (COGS / Avg Inv)" icon={Activity} isActive /><StatsCard title="Avg Days to Sell" value={`${Math.round(turnoverStats.avgDaysToSell)} Days`} subValue="Velocity" icon={Timer} /><StatsCard title="Realized Profit" value={formatCurrency(realizedProfit)} subValue="From Sales" icon={Wallet} /><div className="bg-slate-900 rounded-2xl p-6 text-white relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 right-0 w-24 h-24 bg-gold-500/20 rounded-full blur-3xl -mr-8 -mt-8"></div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Unrealized Profit (Est)</p><div className="flex items-end gap-2 mb-2"><input type="number" placeholder="Mkt Rate..." value={marketRate} onChange={(e) => setMarketRate(e.target.value)} className="w-24 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white focus:border-gold-500 outline-none"/></div><h3 className={`text-2xl font-mono font-bold ${unrealizedProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{hasRate ? formatCurrency(unrealizedProfit) : '---'}</h3></div></div><div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">{[{ id: 'CUSTOMER', title: 'Customer Report', icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },{ id: 'SUPPLIER', title: 'Supplier Report', icon: Factory, color: 'text-blue-600', bg: 'bg-blue-50' },{ id: 'CONSOLIDATED', title: 'Full Audit', icon: FileText, color: 'text-gold-600', bg: 'bg-gold-50' }].map((rpt, i) => (<div key={rpt.id} onClick={() => {}} className="group bg-white p-6 rounded-2xl border border-slate-100 shadow-card hover:shadow-lg transition-all cursor-pointer flex items-center gap-5 animate-slide-up" style={{ animationDelay: `${i*100}ms` }}><div className={`p-4 rounded-xl ${rpt.bg} ${rpt.color} group-hover:scale-110 transition-transform`}><rpt.icon className="w-6 h-6"/></div><div><h3 className="font-bold text-slate-900 text-lg">{rpt.title}</h3><p className="text-slate-400 text-sm mt-0.5">Generate PDF</p></div><div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0"><Download className="w-5 h-5 text-slate-300"/></div></div>))}</div>
+      <div className="space-y-8"><SectionHeader title="Analytics & Reports" subtitle="Deep dive into your business performance." action={<div className="flex gap-2 items-center"><ExportMenu onExport={(t) => addToast('SUCCESS', 'For detailed exports, use specific sections or Generate PDF below.')} />{renderDateFilter()}</div>}/>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatsCard title="Inventory Turnover" value={`${turnoverStats.turnoverRatio.toFixed(2)}x`} subValue="Ratio (COGS / Avg Inv)" icon={Activity} isActive /><StatsCard title="Avg Days to Sell" value={`${Math.round(turnoverStats.avgDaysToSell)} Days`} subValue="Velocity" icon={Timer} /><StatsCard title="Realized Profit" value={formatCurrency(realizedProfit)} subValue="From Sales" icon={Wallet} /><div className="bg-slate-900 rounded-2xl p-6 text-white relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 right-0 w-24 h-24 bg-gold-500/20 rounded-full blur-3xl -mr-8 -mt-8"></div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Unrealized Profit (Est)</p><div className="flex items-end gap-2 mb-2"><input type="number" placeholder="Mkt Rate..." value={marketRate} onChange={(e) => setMarketRate(e.target.value)} className="w-24 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white focus:border-gold-500 outline-none"/></div><h3 className={`text-2xl font-mono font-bold ${unrealizedProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{hasRate ? formatCurrency(unrealizedProfit) : '---'}</h3></div></div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">{[{ id: 'CUSTOMER', title: 'Customer Report', icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },{ id: 'SUPPLIER', title: 'Supplier Report', icon: Factory, color: 'text-blue-600', bg: 'bg-blue-50' },{ id: 'CONSOLIDATED', title: 'Full Audit', icon: FileText, color: 'text-gold-600', bg: 'bg-gold-50' }].map((rpt, i) => (<div key={rpt.id} onClick={() => {}} className="group bg-white p-6 rounded-2xl border border-slate-100 shadow-card hover:shadow-lg transition-all cursor-pointer flex items-center gap-5 animate-slide-up" style={{ animationDelay: `${i*100}ms` }}><div className={`p-4 rounded-xl ${rpt.bg} ${rpt.color} group-hover:scale-110 transition-transform`}><rpt.icon className="w-6 h-6"/></div><div><h3 className="font-bold text-slate-900 text-lg">{rpt.title}</h3><p className="text-slate-400 text-sm mt-0.5">Generate PDF</p></div><div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0"><Download className="w-5 h-5 text-slate-300"/></div></div>))}</div>
+      
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <Card title="Profit Trend" className="lg:col-span-2" delay={300}><div className="h-64 md:h-80 w-full"><ResponsiveContainer><AreaChart data={profitTrendData}><defs><linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/><XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, dy: 10}}/><YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} tickFormatter={(v) => `${v/1000}k`}/><Tooltip contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}} formatter={(value: number) => [formatCurrency(value), 'Net Profit']}/><Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" /></AreaChart></ResponsiveContainer></div></Card>
           
-          {/* Enhanced Professional Donut Chart */}
           <Card title="Customer Volume Share" className="lg:col-span-1 min-h-[400px]" delay={400}>
-                <div className="h-[350px] w-full">
+                <div className="h-[350px] w-full flex items-center justify-center">
                     <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                            <Pie 
-                                activeIndex={activeIndex}
-                                activeShape={renderActiveShape}
-                                data={pieData} 
-                                cx="50%" 
-                                cy="50%" 
-                                innerRadius={70} 
-                                outerRadius={100} 
-                                paddingAngle={4} 
+                            <Pie
+                                data={pieData}
                                 dataKey="value"
-                                onMouseEnter={onPieEnter}
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={60}
+                                outerRadius={80}
                                 stroke="none"
                             >
                                 {pieData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="stroke-white stroke-2" />
+                                    <Cell key={`cell-${index}`} fill={GREEN_SHADES[index % GREEN_SHADES.length]} />
                                 ))}
                             </Pie>
                             <Tooltip 
                                 content={({ active, payload }) => {
                                     if (active && payload && payload.length) {
+                                        const data = payload[0].payload;
                                         return (
-                                            <div className="bg-white/90 backdrop-blur-md p-3 border border-slate-100 shadow-xl rounded-xl">
-                                                <p className="font-bold text-slate-800 text-sm mb-1">{payload[0].name}</p>
-                                                <p className="text-gold-600 font-mono font-bold">{formatGrams(payload[0].value as number)}</p>
+                                            <div className="bg-white/95 backdrop-blur-md p-3 border border-emerald-100 shadow-xl rounded-xl">
+                                                <p className="text-xs font-bold text-slate-500 mb-1">{data.name}</p>
+                                                <p className="text-sm font-mono font-bold text-emerald-700">{formatGrams(data.value)}</p>
                                             </div>
                                         );
                                     }
                                     return null;
                                 }}
-                            />
-                            <Legend 
-                                layout="vertical" 
-                                verticalAlign="middle" 
-                                align="right"
-                                iconType="circle"
-                                wrapperStyle={{ fontSize: '11px', fontWeight: 500, color: '#64748b' }}
                             />
                         </PieChart>
                     </ResponsiveContainer>
