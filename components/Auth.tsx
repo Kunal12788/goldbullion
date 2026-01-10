@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { ShieldCheck, Mail, Lock, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 
@@ -9,6 +9,14 @@ const Auth = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
+  const [showIntro, setShowIntro] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowIntro(false);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,21 +45,67 @@ const Auth = () => {
     }
   };
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 font-sans selection:bg-gold-500/30 selection:text-gold-200 relative overflow-hidden">
+      
+      {/* Intro Splash Screen */}
+      <div className={`fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center transition-all duration-1000 ease-in-out ${showIntro ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'}`}>
+          <div className="relative flex flex-col items-center w-full max-w-2xl px-4">
+              {/* Background Glow */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-gold-500/10 blur-[100px] rounded-full animate-pulse-slow pointer-events-none"></div>
+              
+              <div className="relative z-10 flex flex-col items-center text-center">
+                  <div className="w-24 h-24 bg-gradient-to-br from-gold-400 to-gold-600 rounded-3xl flex items-center justify-center shadow-glow mb-8 animate-[scaleIn_0.5s_ease-out]">
+                      <ShieldCheck className="w-12 h-12 text-white" />
+                  </div>
+                  
+                  <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-3 animate-[slideUp_0.5s_ease-out_0.2s_both]">
+                      Welcome to <span className="text-gold-500">BullionKeep</span>
+                  </h1>
+                  
+                  <p className="text-slate-400 text-lg font-medium animate-[slideUp_0.5s_ease-out_0.4s_both]">
+                      Secure. Private. Intelligent.
+                  </p>
+                  
+                  <div className="mt-12 h-px w-full max-w-[200px] bg-slate-800 animate-[widthExpand_0.8s_ease-out_0.6s_both]"></div>
+                  
+                  <p className="text-gold-600 mt-8 text-sm font-extrabold tracking-[0.2em] uppercase animate-[fadeIn_0.5s_ease-out_0.8s_both]">
+                      STRATEGICALLY DIRECTED & MANAGED BY KUNAL
+                  </p>
+              </div>
+          </div>
+      </div>
+
       {/* Background Decor */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-gold-600/10 rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-900/10 rounded-full blur-[120px]"></div>
       </div>
 
-      <div className="w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl relative z-10 animate-slide-up">
-        <div className="text-center mb-8">
+      <div className={`w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl relative z-10 transition-all duration-1000 delay-300 ${showIntro ? 'translate-y-8 opacity-0' : 'translate-y-0 opacity-100'}`}>
+        <div className="text-center mb-6">
           <div className="w-16 h-16 bg-gradient-to-br from-gold-400 to-gold-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-gold-500/20">
             <ShieldCheck className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight">BullionKeep</h1>
           <p className="text-slate-400 mt-2 text-sm">Private Inventory Intelligence</p>
+        </div>
+
+        {/* Form Header */}
+        <div className="text-center mb-6">
+             <h2 className="text-xl font-semibold text-white mb-1 flex items-center justify-center gap-2">
+                 {isSignUp ? "Create Account" : <>{getGreeting()} <span className="animate-bounce delay-100">👋</span></>}
+             </h2>
+             <p className="text-sm text-slate-400">
+                 {isSignUp ? "Begin your secure bullion tracking journey." : "Welcome back. Please sign in to continue."}
+             </p>
         </div>
 
         <form onSubmit={handleAuth} className="space-y-5">
@@ -118,9 +172,16 @@ const Auth = () => {
             </button>
           </p>
         </div>
+
+        {/* Added Branding Footer to Card */}
+        <div className="mt-8 pt-6 border-t border-white/5 text-center">
+            <p className="text-gold-500 text-xs font-extrabold tracking-[0.15em] uppercase">
+                Strategically Directed & Managed by Kunal
+            </p>
+        </div>
       </div>
       
-      <p className="mt-8 text-slate-600 text-xs font-mono">Secured by Supabase Authentication</p>
+      <p className="mt-8 text-slate-600 text-xs font-mono relative z-10">Secured by Supabase Authentication</p>
     </div>
   );
 };
