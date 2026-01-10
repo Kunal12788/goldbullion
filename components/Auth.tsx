@@ -46,9 +46,22 @@ const Auth = () => {
   };
 
   const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 18) return 'Good Afternoon';
+    const now = new Date();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    const totalMinutes = hour * 60 + minute;
+
+    // Morning: 6:00 AM (360 mins) to 11:57 AM (717 mins)
+    if (totalMinutes >= 360 && totalMinutes <= 717) {
+        return 'Good Morning';
+    }
+
+    // Afternoon: 12:00 PM (720 mins) to 4:00 PM (960 mins)
+    if (totalMinutes >= 720 && totalMinutes <= 960) {
+        return 'Good Afternoon';
+    }
+
+    // Evening: Rest of the time
     return 'Good Evening';
   };
 
