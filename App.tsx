@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Session } from '@supabase/supabase-js';
 import Layout from './components/Layout';
@@ -515,15 +514,122 @@ function App() {
   // --- EXPORT HANDLERS ---
   
   const generatePDF = (title: string, head: string[][], body: (string | number)[][], summary?: string[]) => {
-      const doc = new jsPDF();
-      doc.setFontSize(16);
-      doc.text(title, 14, 15);
+      // Determine orientation based on column count (Threshold 8)
+      const colCount = head[0]?.length || 0;
+      const isLandscape = colCount > 7;
+      
+      const doc = new jsPDF({
+          orientation: isLandscape ? 'landscape' : 'portrait',
+          unit: 'mm',
+          format: 'a4'
+      });
+      
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      
+      // Theme Colors
+      const goldColor = [209, 151, 38]; // #d19726
+      const slateDark = [15, 23, 42];   // #0f172a
+      
+      // Helper to sanitize currency symbols for PDF
+      const sanitize = (val: any) => String(val).replace(/₹/g, 'Rs. ');
+
+      const sanitizedHead = head.map(row => row.map(sanitize));
+      const sanitizedBody = body.map(row => row.map(sanitize));
+      const sanitizedSummary = summary?.map(sanitize);
+
+      // --- Header ---
+      doc.setFillColor(slateDark[0], slateDark[1], slateDark[2]);
+      doc.rect(0, 0, pageWidth, 40, 'F'); // Dark header background
+
+      // Brand Name
+      doc.setTextColor(goldColor[0], goldColor[1], goldColor[2]);
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.text("BullionKeep AI", 14, 20);
+
+      // Tagline
+      doc.setTextColor(200, 200, 200);
       doc.setFontSize(10);
-      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 22);
-      if (summary) summary.forEach((line, i) => doc.text(line, 14, 28 + (i * 5)));
-      autoTable(doc, { startY: summary ? 30 + (summary.length * 5) : 30, head: head, body: body, theme: 'grid', styles: { fontSize: 8 }, headStyles: { fillColor: [209, 151, 38] } });
-      doc.save(`${title.replace(/\s+/g, '_').toLowerCase()}.pdf`);
-      addToast('SUCCESS', `${title} downloaded.`);
+      doc.setFont("helvetica", "normal");
+      doc.text("Private Inventory Intelligence", 14, 28);
+
+      // Report Info (Right aligned in header)
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.text(`Report: ${title}`, pageWidth - 14, 20, { align: 'right' });
+      doc.text(`Date: ${new Date().toLocaleDateString('en-IN')}`, pageWidth - 14, 28, { align: 'right' });
+
+      let yPos = 55;
+
+      // --- Summary Section ---
+      if (sanitizedSummary && sanitizedSummary.length > 0) {
+          doc.setDrawColor(200, 200, 200);
+          doc.setFillColor(250, 250, 250);
+          
+          // Calculate height needed
+          const summaryHeight = (sanitizedSummary.length * 7) + 10;
+          
+          // Draw Box
+          doc.roundedRect(14, yPos - 5, pageWidth - 28, summaryHeight, 2, 2, 'FD');
+          
+          // Left Gold Accent Border
+          doc.setDrawColor(goldColor[0], goldColor[1], goldColor[2]);
+          doc.setLineWidth(1.5);
+          doc.line(14, yPos - 5, 14, yPos - 5 + summaryHeight);
+          doc.setLineWidth(0.1); // Reset
+
+          doc.setFontSize(11);
+          doc.setTextColor(50, 50, 50);
+          
+          sanitizedSummary.forEach((line, i) => {
+              doc.text(line, 20, yPos + (i * 7));
+          });
+
+          yPos += summaryHeight + 10;
+      }
+
+      // --- Table ---
+      autoTable(doc, {
+          startY: yPos,
+          head: sanitizedHead,
+          body: sanitizedBody,
+          theme: 'grid',
+          styles: {
+              fontSize: isLandscape ? 7.5 : 9, // Smaller font for wider tables to fit data
+              textColor: 50,
+              cellPadding: 3, // Reduced padding
+              lineWidth: 0.1,
+              lineColor: [220, 220, 220],
+              overflow: 'linebreak'
+          },
+          headStyles: {
+              fillColor: slateDark as [number, number, number],
+              textColor: [255, 255, 255],
+              fontStyle: 'bold',
+              halign: 'center'
+          },
+          alternateRowStyles: {
+              fillColor: [248, 250, 252] // Very light slate
+          },
+          columnStyles: {
+              0: { fontStyle: 'bold' } // First column often ID or Name
+          },
+          didDrawPage: (data) => {
+              // Footer
+              doc.setFontSize(8);
+              doc.setTextColor(150);
+              doc.text(`Page ${data.pageNumber} of ${doc.getNumberOfPages()}`, data.settings.margin.left, pageHeight - 10);
+              
+              doc.setTextColor(goldColor[0], goldColor[1], goldColor[2]);
+              doc.setFont("helvetica", "bold");
+              doc.text("STRATEGICALLY DIRECTED & MANAGED BY KUNAL", pageWidth - 14, pageHeight - 10, { align: 'right' });
+          }
+      });
+
+      const fileName = `${title.replace(/\s+/g, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+      addToast('SUCCESS', `${title} PDF downloaded.`);
   };
 
   const handleInventoryExport = (type: 'CSV' | 'PDF') => {
@@ -1079,7 +1185,7 @@ function App() {
   }
 
   const BusinessLedgerView = () => {
-      // Calculate monthly ledger
+      // Calculate monthly aggregates
       const { monthlyData, totals } = useMemo(() => {
           const stats: Record<string, { turnover: number, profit: number, tax: number, qty: number }> = {};
           let totalTurnover = 0;
