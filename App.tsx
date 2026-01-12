@@ -21,7 +21,7 @@ import {
   Timer, Activity, Wallet, FileDown, CheckCircle, CloudCog, RefreshCw, CloudUpload, Server, Database, Info, Edit2, Eye
 } from 'lucide-react';
 import { 
-  AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Sector 
+  AreaChart, Area, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Sector 
 } from 'recharts';
 
 // --- Shared UI Components ---
@@ -73,6 +73,9 @@ function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [dbError, setDbError] = useState(false); // Track DB connection/schema errors
   
+  // Working Mode State (Lifted Up)
+  const [isWorkingMode, setIsWorkingMode] = useState(false);
+
   // Delete Modal State
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deletePassword, setDeletePassword] = useState('');
@@ -102,6 +105,13 @@ function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Reset Working Mode on Session End
+  useEffect(() => {
+    if (!session) {
+      setIsWorkingMode(false);
+    }
+  }, [session]);
 
   const addToast = (type: 'SUCCESS' | 'ERROR', message: string) => {
       const id = generateId();
@@ -291,6 +301,7 @@ function App() {
   }, [lockDate]);
 
   const handleLogout = async () => {
+      setIsWorkingMode(false);
       await supabase.auth.signOut();
   };
 
@@ -948,7 +959,42 @@ function App() {
         <div className="space-y-8 animate-enter">
              <SectionHeader title="Price Intelligence & Spread Analysis" subtitle="Pricing trends, spreads, and supplier consistency." action={<div className="flex gap-2 items-center"><ExportMenu onExport={(t) => handlePriceExport(t, priceMetrics.purchases)} />{renderDateFilter()}</div>}/>
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                 <Card title="Selling Price Trend (Avg/g)" delay={100} className="min-h-[400px]"><div className="h-full w-full"><ResponsiveContainer><AreaChart data={priceMetrics.trendData}><defs><linearGradient id="colorSell" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#d19726" stopOpacity={0.2}/><stop offset="95%" stopColor="#d19726" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/><XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}}/><YAxis domain={['auto', 'auto']} axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} tickFormatter={(v) => `₹${v}`}/><Tooltip contentStyle={{borderRadius: '12px'}} formatter={(val:number) => [formatCurrency(val), 'Avg Sell Price']}/><Area type="monotone" dataKey="avgSellPrice" stroke="#b4761e" fill="url(#colorSell)" /></AreaChart></ResponsiveContainer></div></Card>
+                 <Card title="Selling Price Trend (Avg/g)" delay={100} className="min-h-[400px]">
+                    <div className="h-full w-full">
+                        <ResponsiveContainer>
+                            <LineChart data={priceMetrics.trendData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                <XAxis 
+                                    dataKey="date" 
+                                    axisLine={{ stroke: '#cbd5e1' }} 
+                                    tickLine={false} 
+                                    tick={{fill: '#64748b', fontSize: 11, fontWeight: 500}} 
+                                    dy={10}
+                                />
+                                <YAxis 
+                                    domain={['auto', 'auto']} 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{fill: '#64748b', fontSize: 11}} 
+                                    tickFormatter={(v) => `₹${v}`} 
+                                />
+                                <Tooltip 
+                                    cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '4 4' }}
+                                    contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} 
+                                    formatter={(val:number) => [formatCurrency(val), 'Avg Sell Price']}
+                                />
+                                <Line 
+                                    type="linear" // Changed from monotone to linear to match the 'straight' segments in the sample image
+                                    dataKey="avgSellPrice" 
+                                    stroke="#b4761e" 
+                                    strokeWidth={3} 
+                                    dot={{ r: 5, fill: "#b4761e", stroke: "#fff", strokeWidth: 2 }} // Distinct markers like the image
+                                    activeDot={{ r: 8, fill: "#b4761e", stroke: "#fff", strokeWidth: 2 }} 
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                 </Card>
                  <Card title="Supplier Cost Consistency" delay={200} className="min-h-[400px]"><div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="text-slate-500 bg-slate-50/50"><tr><th className="px-4 py-3">Supplier</th><th className="px-4 py-3 text-right">Avg Rate</th><th className="px-4 py-3 text-right">Min Rate</th><th className="px-4 py-3 text-right">Max Rate</th><th className="px-4 py-3 text-right">Volatility (Spread)</th></tr></thead><tbody>{supplierData.map((s, i) => (<tr key={i} className="hover:bg-slate-50 border-b border-slate-50"><td className="px-4 py-3 font-medium">{s.name}</td><td className="px-4 py-3 text-right font-mono text-blue-600">{formatCurrency(s.avgRate)}</td><td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(s.minRate)}</td><td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(s.maxRate)}</td><td className="px-4 py-3 text-right font-mono font-bold text-slate-700">{formatCurrency(s.volatility)}</td></tr>))}</tbody></table></div></Card>
              </div>
              <Card title="Detailed Purchase Transactions" delay={300}><div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="text-slate-500 bg-slate-50/50"><tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Supplier</th><th className="px-4 py-3 text-right">Qty (g)</th><th className="px-4 py-3 text-right">Purchase Rate (₹/g)</th><th className="px-4 py-3 text-right">Taxable (Ex-Tax)</th></tr></thead><tbody>{priceMetrics.purchases.length === 0 ? (<tr><td colSpan={5} className="text-center py-8 text-slate-400">No purchases in this period.</td></tr>) : priceMetrics.purchases.sort((a,b) => b.date.localeCompare(a.date)).map(inv => (<tr key={inv.id} className="hover:bg-slate-50 border-b border-slate-50"><td className="px-4 py-3 text-slate-500">{inv.date}</td><td className="px-4 py-3 font-medium">{inv.partyName}</td><td className="px-4 py-3 text-right font-mono">{formatGrams(inv.quantityGrams)}</td><td className="px-4 py-3 text-right font-mono text-blue-600">{formatCurrency(inv.ratePerGram)}</td><td className="px-4 py-3 text-right font-mono">{formatCurrency(inv.taxableAmount)}</td></tr>))}</tbody></table></div></Card>
@@ -1151,7 +1197,14 @@ function App() {
   const InvoicesView = () => (
       <div className="flex flex-col lg:flex-row gap-6 relative items-start h-full">
           <div className="w-full lg:w-[380px] xl:w-[420px] flex-shrink-0 lg:sticky lg:top-0 transition-all">
-              <InvoiceForm onAdd={handleAddInvoice} currentStock={currentStock} lockDate={lockDate} invoices={invoices} />
+              <InvoiceForm 
+                onAdd={handleAddInvoice} 
+                currentStock={currentStock} 
+                lockDate={lockDate} 
+                invoices={invoices}
+                isWorkingMode={isWorkingMode} 
+                setIsWorkingMode={setIsWorkingMode}
+              />
           </div>
           <div className="flex-1 w-full min-w-0">
               <Card title="Recent Transactions" className="min-h-[600px] h-full flex flex-col" delay={200}
@@ -1162,6 +1215,7 @@ function App() {
                      </div>
                  }
               >
+                  {/* ... Table ... */}
                   <div className="overflow-auto flex-1 -mx-6 px-6 relative custom-scrollbar">
                       <table className="w-full text-sm text-left border-separate border-spacing-y-2 min-w-[1000px]">
                           <thead className="text-slate-400 sticky top-0 bg-white/95 backdrop-blur z-10">
@@ -1250,8 +1304,6 @@ function App() {
           </div>
       </div>
   );
-
-  // ... (Remainder of App.tsx remains)
 
   if (!session) {
     return <Auth />;
