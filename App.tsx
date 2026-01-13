@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Session } from '@supabase/supabase-js';
 import Layout from './components/Layout';
@@ -27,36 +28,37 @@ import {
 
 const Card: React.FC<{ children: React.ReactNode; className?: string; title?: React.ReactNode; action?: React.ReactNode, delay?: number }> = ({ children, className = '', title, action, delay = 0 }) => (
   <div 
-    className={`bg-white rounded-2xl border border-slate-100 shadow-card flex flex-col overflow-hidden animate-slide-up transition-colors duration-300 ${className}`}
+    className={`bg-white rounded-2xl border border-slate-100 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.05)] flex flex-col overflow-hidden animate-slide-up transition-all duration-300 hover:shadow-lg ${className}`}
     style={{ animationDelay: `${delay}ms` }}
   >
     {title && (
-      <div className="px-4 md:px-6 py-4 border-b border-slate-50 flex flex-wrap justify-between items-center bg-white/50 backdrop-blur-sm sticky top-0 z-10 gap-2">
-        <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">{title}</h3>
+      <div className="px-6 py-5 border-b border-slate-50 flex flex-wrap justify-between items-center bg-white/80 backdrop-blur-sm sticky top-0 z-10 gap-4">
+        <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2 tracking-tight">{title}</h3>
         {action && <div>{action}</div>}
       </div>
     )}
-    <div className="p-4 md:p-6 flex-1 overflow-auto">{children}</div>
+    <div className="p-6 flex-1 overflow-auto">{children}</div>
   </div>
 );
 
 const SectionHeader: React.FC<{ title: string; subtitle?: string; action?: React.ReactNode }> = ({ title, subtitle, action }) => (
-  <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6 animate-slide-up">
+  <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 animate-slide-up">
     <div>
-      <h2 className="text-2xl font-bold text-slate-900 tracking-tight">{title}</h2>
-      {subtitle && <p className="text-slate-500 text-sm mt-1 font-medium">{subtitle}</p>}
+      <h2 className="text-3xl font-bold text-slate-900 tracking-tight leading-tight">{title}</h2>
+      {subtitle && <p className="text-slate-500 text-sm mt-1.5 font-medium">{subtitle}</p>}
     </div>
     {action && <div className="flex gap-2 w-full md:w-auto">{action}</div>}
   </div>
 );
 
 const ExportMenu: React.FC<{ onExport: (type: 'CSV' | 'PDF') => void }> = ({ onExport }) => (
-    <div className="flex gap-2">
-        <button onClick={() => onExport('CSV')} className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-slate-900 transition-colors">
-            <FileSpreadsheet className="w-4 h-4" /> CSV
+    <div className="flex gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+        <button onClick={() => onExport('CSV')} className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors rounded-lg">
+            <FileSpreadsheet className="w-3.5 h-3.5" /> CSV
         </button>
-        <button onClick={() => onExport('PDF')} className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-slate-900 border border-slate-900 rounded-lg hover:bg-slate-800 transition-colors shadow-sm">
-            <FileText className="w-4 h-4" /> PDF
+        <div className="w-px bg-slate-100 my-1"></div>
+        <button onClick={() => onExport('PDF')} className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors rounded-lg">
+            <FileText className="w-3.5 h-3.5" /> PDF
         </button>
     </div>
 );
@@ -856,36 +858,37 @@ function App() {
        const hasMissing = localCount > cloudCount;
 
        return (
-            <div className="space-y-6 animate-enter">
-                <SectionHeader title="Dashboard" subtitle="Overview of your inventory and performance." action={renderDateFilter()}/>
+            <div className="space-y-8 animate-enter">
+                <SectionHeader title="Executive Dashboard" subtitle="Real-time overview of inventory performance and alerts." action={renderDateFilter()}/>
                 {dbError && (
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-red-600 shadow-xl flex items-center gap-4 animate-pulse-slow">
+                    <div className="bg-red-50 border border-red-100 rounded-2xl p-6 text-red-700 shadow-sm flex items-center gap-4 animate-pulse-slow">
                         <div className="p-3 bg-red-100 rounded-full text-red-600"><Database className="w-6 h-6"/></div>
                         <div className="flex-1">
-                            <h3 className="font-bold text-lg text-red-700">Database Connection Issue</h3>
-                            <p className="text-sm font-medium text-red-600/80 mt-1">We cannot fetch your cloud data. This usually happens if the <strong>SQL Setup</strong> hasn't been run yet.</p>
+                            <h3 className="font-bold text-lg text-red-800">Database Connection Issue</h3>
+                            <p className="text-sm font-medium opacity-90 mt-1">We cannot fetch your cloud data. This usually happens if the <strong>SQL Setup</strong> hasn't been run yet.</p>
                         </div>
                     </div>
                 )}
                 {/* Cloud Sync Card */}
-                <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 border border-slate-700/50">
-                    <div className="flex items-center gap-4">
-                        <div className={`p-3 rounded-full ${hasMissing ? 'bg-amber-500/20 text-amber-400' : 'bg-green-500/20 text-green-400'}`}>{isSyncing ? <RefreshCw className="w-6 h-6 animate-spin"/> : <CloudCog className="w-6 h-6"/>}</div>
+                <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-xl shadow-slate-900/10 flex flex-col md:flex-row items-center justify-between gap-6 border border-slate-800 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-slate-800/50 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+                    <div className="flex items-center gap-5 relative z-10">
+                        <div className={`p-3.5 rounded-2xl border ${hasMissing ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-green-500/10 text-green-400 border-green-500/20'}`}>{isSyncing ? <RefreshCw className="w-6 h-6 animate-spin"/> : <CloudCog className="w-6 h-6"/>}</div>
                         <div>
-                            <h3 className="font-bold text-lg">Cloud Sync Status</h3>
-                            <div className="flex gap-4 text-sm text-slate-400 mt-1">
-                                <span className="flex items-center gap-1"><Server className="w-3 h-3"/> Cloud: {cloudCount}</span>
-                                <span className="flex items-center gap-1"><FileText className="w-3 h-3"/> Local: {localCount}</span>
+                            <h3 className="font-bold text-xl">Cloud Sync Status</h3>
+                            <div className="flex gap-4 text-xs font-mono text-slate-400 mt-1.5 uppercase tracking-wider">
+                                <span className="flex items-center gap-1.5"><Server className="w-3.5 h-3.5"/> Cloud: {cloudCount}</span>
+                                <span className="flex items-center gap-1.5"><FileText className="w-3.5 h-3.5"/> Local: {localCount}</span>
                             </div>
                         </div>
                     </div>
                     {hasMissing ? (
-                         <div className="flex items-center gap-4">
-                             <p className="text-sm font-medium text-amber-300">Unsynced records found on this device.</p>
-                             <button onClick={handleManualSync} disabled={isSyncing} className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold rounded-lg transition-colors flex items-center gap-2">{isSyncing ? 'Uploading...' : 'Sync Now'} <CloudUpload className="w-4 h-4"/></button>
+                         <div className="flex items-center gap-4 relative z-10">
+                             <p className="text-sm font-medium text-amber-300">Unsynced records found.</p>
+                             <button onClick={handleManualSync} disabled={isSyncing} className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2 text-sm">{isSyncing ? 'Uploading...' : 'Sync Now'} <CloudUpload className="w-4 h-4"/></button>
                          </div>
                     ) : (
-                        <div className="flex items-center gap-2 text-green-400 bg-green-500/10 px-4 py-2 rounded-lg border border-green-500/20"><CheckCircle className="w-4 h-4"/><span className="text-sm font-bold">System Synchronized</span></div>
+                        <div className="flex items-center gap-2 text-green-400 bg-green-950/30 px-4 py-2 rounded-xl border border-green-500/20 relative z-10"><CheckCircle className="w-4 h-4"/><span className="text-xs font-bold uppercase tracking-wide">Synchronized</span></div>
                     )}
                 </div>
                 {/* Stats Cards */}
@@ -897,26 +900,45 @@ function App() {
                 </div>
                 {/* Charts Area */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                     <div className="lg:col-span-2 space-y-6">
+                     <div className="lg:col-span-2 space-y-8">
                           <Card title="Business Health & Alerts" delay={4}>
                                {alerts.length === 0 ? (
-                                   <div className="flex flex-col items-center justify-center h-40 text-slate-400"><CheckCircle className="w-8 h-8 mb-2 text-green-500" /><p>All systems healthy. No risk alerts.</p></div>
+                                   <div className="flex flex-col items-center justify-center h-32 text-slate-400 bg-slate-50 rounded-xl border border-slate-100 border-dashed"><CheckCircle className="w-8 h-8 mb-2 text-green-500 opacity-50" /><p className="text-sm font-medium">All systems healthy. No risk alerts.</p></div>
                                ) : (
-                                   <div className="space-y-3">{alerts.map(alert => (<div key={alert.id} className={`flex items-start gap-4 p-4 rounded-xl border ${alert.severity === 'HIGH' ? 'bg-red-50 border-red-100 text-red-800' : 'bg-amber-50 border-amber-100 text-amber-800'}`}><AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" /><div><p className="font-bold text-sm uppercase tracking-wide mb-1">{alert.context}</p><p className="text-sm font-medium">{alert.message}</p></div></div>))}</div>
+                                   <div className="space-y-3">{alerts.map(alert => (<div key={alert.id} className={`flex items-start gap-4 p-4 rounded-xl border-l-4 ${alert.severity === 'HIGH' ? 'bg-red-50 border-l-red-500 border-y border-r border-slate-100 text-red-900' : 'bg-amber-50 border-l-amber-500 border-y border-r border-slate-100 text-amber-900'}`}><AlertTriangle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${alert.severity === 'HIGH' ? 'text-red-500' : 'text-amber-500'}`} /><div><p className="font-bold text-xs uppercase tracking-wide mb-1 opacity-70">{alert.context}</p><p className="text-sm font-semibold leading-relaxed">{alert.message}</p></div></div>))}</div>
                                )}
                           </Card>
                           <Card title="Recent Activity" delay={5}>
-                               <div className="space-y-3">{invoices.slice(0, 5).map(inv => (<div key={inv.id} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors border border-slate-50"><div className="flex items-center gap-3"><div className={`p-2 rounded-lg ${inv.type === 'PURCHASE' ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'}`}>{inv.type === 'PURCHASE' ? <ArrowRightLeft className="w-4 h-4"/> : <Coins className="w-4 h-4"/>}</div><div><p className="font-bold text-slate-900 text-sm">{inv.partyName}</p><p className="text-xs text-slate-500">{new Date(inv.date).toLocaleDateString()}</p></div></div><div className="text-right"><p className="font-mono font-bold text-sm text-slate-900">{formatGrams(inv.quantityGrams)}</p><p className="text-xs text-slate-500">{formatCurrency(inv.totalAmount)}</p></div></div>))}</div>
+                               <div className="space-y-1">
+                                {invoices.slice(0, 5).map((inv, idx) => (
+                                  <div key={inv.id} className={`flex items-center justify-between p-4 hover:bg-slate-50 rounded-xl transition-all group ${idx !== invoices.slice(0,5).length -1 ? 'border-b border-slate-50' : ''}`}>
+                                    <div className="flex items-center gap-4">
+                                      <div className={`w-10 h-10 rounded-full flex items-center justify-center border ${inv.type === 'PURCHASE' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-green-50 text-green-600 border-green-100'}`}>
+                                        {inv.type === 'PURCHASE' ? <ArrowRightLeft className="w-4 h-4"/> : <Coins className="w-4 h-4"/>}
+                                      </div>
+                                      <div>
+                                        <p className="font-bold text-slate-900 text-sm group-hover:text-gold-600 transition-colors">{inv.partyName}</p>
+                                        <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">{new Date(inv.date).toLocaleDateString()}</p>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="font-mono font-bold text-sm text-slate-900">{formatGrams(inv.quantityGrams)}</p>
+                                      <p className="text-xs text-slate-500 font-medium">{formatCurrency(inv.totalAmount)}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                               </div>
                           </Card>
                      </div>
-                     <div className="space-y-6">
-                          <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-xl flex flex-col items-center text-center justify-center min-h-[200px] relative overflow-hidden">
-                               <div className="absolute inset-0 bg-gradient-to-br from-gold-500/10 to-transparent"></div>
-                               <h3 className="relative z-10 text-3xl font-mono font-bold mb-1 text-gold-400">{formatGrams(qtySoldPeriod)}</h3>
-                               <p className="relative z-10 text-slate-400 text-xs font-bold uppercase tracking-widest">Volume Sold (Period)</p>
+                     <div className="space-y-8">
+                          <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-8 text-white shadow-xl flex flex-col items-center text-center justify-center min-h-[220px] relative overflow-hidden border border-slate-800">
+                               <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
+                               <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+                               <h3 className="relative z-10 text-4xl font-mono font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-gold-300 to-gold-500">{formatGrams(qtySoldPeriod)}</h3>
+                               <p className="relative z-10 text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em]">Volume Sold (Period)</p>
                           </div>
                           <Card title="Stock Aging" delay={6}>
-                               <div className="space-y-4">{Object.entries(agingStats.buckets).map(([range, qty]) => (<div key={range}><div className="flex justify-between text-xs mb-1"><span className="font-bold text-slate-500">{range} Days</span><span className="font-mono text-slate-700">{formatGrams(qty)}</span></div><div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full rounded-full ${range === '30+' ? 'bg-red-500' : 'bg-gold-500'}`} style={{ width: `${currentStock > 0 ? (qty / currentStock) * 100 : 0}%` }}></div></div></div>))}</div>
+                               <div className="space-y-5 pt-2">{Object.entries(agingStats.buckets).map(([range, qty]) => (<div key={range}><div className="flex justify-between text-xs mb-2"><span className="font-bold text-slate-500 uppercase tracking-wider">{range} Days</span><span className="font-mono font-bold text-slate-700">{formatGrams(qty)}</span></div><div className="h-2.5 bg-slate-100 rounded-full overflow-hidden shadow-inner"><div className={`h-full rounded-full transition-all duration-1000 ${range === '30+' ? 'bg-red-500' : 'bg-gradient-to-r from-gold-400 to-gold-600'}`} style={{ width: `${currentStock > 0 ? (qty / currentStock) * 100 : 0}%` }}></div></div></div>))}</div>
                           </Card>
                      </div>
                 </div>
@@ -1008,41 +1030,41 @@ function App() {
 
     return (
         <div className="space-y-8 animate-enter">
-            <SectionHeader title="Customer Intelligence" subtitle="Analyze purchasing patterns and profitability." action={<div className="flex gap-2 items-center"><ExportMenu onExport={(t) => initiateExport(handleSingleCustomerExport, t)} />{renderDateFilter()}</div>}/>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">{customerData.slice(0, 3).map((c, i) => (<div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-card flex flex-col gap-4 relative overflow-hidden group hover:shadow-lg transition-all"><div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-purple-500/10 to-transparent rounded-full -mr-8 -mt-8 group-hover:scale-110 transition-transform"></div><div className="flex justify-between items-start z-10"><div><h3 className="font-bold text-lg text-slate-900 truncate max-w-[150px]">{c.name}</h3><p className="text-xs text-purple-600 font-bold bg-purple-50 px-2 py-1 rounded-md inline-block mt-1">{c.behaviorPattern}</p></div><div className="p-2 bg-slate-50 rounded-lg text-slate-400"><Users className="w-5 h-5"/></div></div><div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4 z-10"><div><p className="text-[10px] uppercase text-slate-400 font-bold">Total Grams</p><p className="font-mono font-bold text-slate-700">{formatGrams(c.totalGrams)}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Total Revenue</p><p className="font-mono font-bold text-slate-700">{formatCurrency(c.totalSpend)}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Tx Count</p><p className="font-mono font-bold text-slate-700">{c.txCount}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Avg Price/g</p><p className="font-mono font-bold text-slate-700">{formatCurrency(c.avgSellingPrice || 0)}</p></div></div></div>))}</div>
-            <Card title="Top 10 Customer Rankings (By Volume)">
+            <SectionHeader title="Customer Intelligence" subtitle="Analyze purchasing patterns and profitability." action={<div className="flex gap-3 items-center"><ExportMenu onExport={(t) => initiateExport(handleSingleCustomerExport, t)} />{renderDateFilter()}</div>}/>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">{customerData.slice(0, 3).map((c, i) => (<div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-lg transition-all flex flex-col gap-4 relative overflow-hidden group"><div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500"></div><div className="flex justify-between items-start z-10"><div><h3 className="font-bold text-lg text-slate-900 truncate max-w-[150px] group-hover:text-purple-700 transition-colors">{c.name}</h3><p className="text-[10px] font-bold bg-purple-50 text-purple-600 px-2 py-1 rounded-md inline-block mt-1 uppercase tracking-wider">{c.behaviorPattern}</p></div><div className="p-2.5 bg-slate-50 rounded-xl text-slate-400 group-hover:bg-purple-50 group-hover:text-purple-600 transition-colors"><Users className="w-5 h-5"/></div></div><div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4 z-10"><div><p className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Total Grams</p><p className="font-mono font-bold text-slate-800">{formatGrams(c.totalGrams)}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Revenue</p><p className="font-mono font-bold text-slate-800">{formatCurrency(c.totalSpend)}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Frequency</p><p className="font-mono font-bold text-slate-800">{c.txCount} Tx</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Avg Price/g</p><p className="font-mono font-bold text-slate-800">{formatCurrency(c.avgSellingPrice || 0)}</p></div></div></div>))}</div>
+            <Card title="Top 10 Customer Rankings">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="text-slate-500 bg-slate-50/50">
+                    <table className="w-full text-sm text-left border-separate border-spacing-y-2">
+                        <thead className="text-slate-400">
                             <tr>
-                                <th className="px-4 py-3 text-center w-16">Rank</th>
-                                <th className="px-4 py-3">Customer</th>
-                                <th className="px-4 py-3 text-center">Frequency</th>
-                                <th className="px-4 py-3 text-right">Volume (g)</th>
-                                <th className="px-4 py-3 text-right">Revenue (Ex GST)</th>
-                                <th className="px-4 py-3 text-right">Avg Price/g</th>
-                                <th className="px-4 py-3 text-right">Profit Contribution</th>
+                                <th className="px-4 py-2 text-center w-16 font-bold uppercase text-[10px] tracking-wider">Rank</th>
+                                <th className="px-4 py-2 font-bold uppercase text-[10px] tracking-wider">Customer</th>
+                                <th className="px-4 py-2 text-center font-bold uppercase text-[10px] tracking-wider">Tx Count</th>
+                                <th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Volume (g)</th>
+                                <th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Revenue</th>
+                                <th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Avg Rate</th>
+                                <th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Profit</th>
                             </tr>
                         </thead>
                         <tbody>
                             {customerData.slice(0, 10).map((c, i) => (
-                                <tr key={i} className="hover:bg-slate-50 border-b border-slate-50">
-                                    <td className="px-4 py-3 text-center font-bold text-slate-400">
+                                <tr key={i} className="bg-white hover:bg-slate-50 transition-colors group">
+                                    <td className="px-4 py-3 text-center border-y border-l border-slate-100 rounded-l-xl">
                                         {i < 3 ? (
-                                            <span className={`flex items-center justify-center w-6 h-6 rounded-full mx-auto ${i === 0 ? 'bg-gold-100 text-gold-700' : i === 1 ? 'bg-slate-200 text-slate-700' : 'bg-orange-100 text-orange-800'}`}>
+                                            <span className={`flex items-center justify-center w-6 h-6 rounded-full mx-auto font-bold text-xs ${i === 0 ? 'bg-gold-100 text-gold-700' : i === 1 ? 'bg-slate-200 text-slate-700' : 'bg-orange-100 text-orange-800'}`}>
                                                 {i + 1}
                                             </span>
-                                        ) : `#${i + 1}`}
+                                        ) : <span className="text-slate-400 text-xs font-mono">#{i + 1}</span>}
                                     </td>
-                                    <td className="px-4 py-3">
-                                        <p className="font-bold text-slate-800">{c.name}</p>
-                                        <p className="text-xs text-slate-500">{c.behaviorPattern}</p>
+                                    <td className="px-4 py-3 border-y border-slate-100">
+                                        <p className="font-bold text-slate-800 text-sm group-hover:text-gold-600 transition-colors">{c.name}</p>
+                                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">{c.behaviorPattern}</p>
                                     </td>
-                                    <td className="px-4 py-3 text-center text-slate-500">{c.txCount}</td>
-                                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-900">{formatGrams(c.totalGrams)}</td>
-                                    <td className="px-4 py-3 text-right font-mono text-slate-700">{formatCurrency(c.totalSpend)}</td>
-                                    <td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(c.avgSellingPrice || 0)}</td>
-                                    <td className="px-4 py-3 text-right font-mono font-bold text-green-600">{formatCurrency(c.profitContribution)}</td>
+                                    <td className="px-4 py-3 text-center border-y border-slate-100 text-slate-500 font-medium text-xs">{c.txCount}</td>
+                                    <td className="px-4 py-3 text-right border-y border-slate-100 font-mono font-bold text-slate-800">{formatGrams(c.totalGrams)}</td>
+                                    <td className="px-4 py-3 text-right border-y border-slate-100 font-mono text-slate-600 text-xs">{formatCurrency(c.totalSpend)}</td>
+                                    <td className="px-4 py-3 text-right border-y border-slate-100 font-mono text-slate-500 text-xs">{formatCurrency(c.avgSellingPrice || 0)}</td>
+                                    <td className="px-4 py-3 text-right border-y border-r border-slate-100 rounded-r-xl font-mono font-bold text-green-600">{formatCurrency(c.profitContribution)}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -1050,30 +1072,30 @@ function App() {
                 </div>
             </Card>
             
-            <Card title="Detailed Sales Ledger">
+            <Card title="Sales Ledger & Drilldown">
                 {!selectedCustomer ? (
                     // Master View: List of Customers
                     <div className="space-y-4">
-                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-sm text-slate-600 flex items-center gap-2">
-                             <Info className="w-4 h-4 text-blue-500"/> Select a customer to view their detailed transaction history and performance metrics.
+                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-xs font-medium text-slate-500 flex items-center gap-2">
+                             <Info className="w-4 h-4 text-blue-500"/> Select a customer row to view detailed transaction history.
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">
-                                <thead className="text-slate-500 bg-slate-50/50">
+                                <thead className="text-slate-500 border-b border-slate-100">
                                     <tr>
-                                        <th className="px-4 py-3">Customer Name</th>
-                                        <th className="px-4 py-3 text-center">Transactions</th>
-                                        <th className="px-4 py-3 text-right">Total Volume (Period)</th>
-                                        <th className="px-4 py-3 text-center">Action</th>
+                                        <th className="px-4 py-3 font-bold uppercase text-[10px] tracking-wider">Customer Name</th>
+                                        <th className="px-4 py-3 text-center font-bold uppercase text-[10px] tracking-wider">Transactions</th>
+                                        <th className="px-4 py-3 text-right font-bold uppercase text-[10px] tracking-wider">Total Volume (Period)</th>
+                                        <th className="px-4 py-3 text-center font-bold uppercase text-[10px] tracking-wider">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {activeCustomers.length === 0 ? (
-                                        <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400 italic">No active customers in this period.</td></tr>
+                                        <tr><td colSpan={4} className="px-4 py-12 text-center text-slate-400 italic">No active customers in this period.</td></tr>
                                     ) : (
                                         activeCustomers.map((c, i) => (
-                                            <tr key={i} className="hover:bg-slate-50 border-b border-slate-50 group cursor-pointer" onClick={() => setSelectedCustomer(c.name)}>
-                                                <td className="px-4 py-3 font-medium text-slate-900 group-hover:text-gold-600 transition-colors">{c.name}</td>
+                                            <tr key={i} className="hover:bg-slate-50 border-b border-slate-50 group cursor-pointer transition-colors" onClick={() => setSelectedCustomer(c.name)}>
+                                                <td className="px-4 py-3 font-semibold text-slate-800 group-hover:text-gold-600 transition-colors">{c.name}</td>
                                                 <td className="px-4 py-3 text-center text-slate-500">{c.count}</td>
                                                 <td className="px-4 py-3 text-right font-mono font-bold text-slate-700">{formatGrams(c.totalVol)}</td>
                                                 <td className="px-4 py-3 text-center">
@@ -1091,13 +1113,13 @@ function App() {
                 ) : (
                     // Detail View: Specific Customer History
                     <div className="space-y-6 animate-fade-in">
-                        <div className="flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
                             <div className="flex items-center gap-4">
                                 <button 
                                     onClick={() => setSelectedCustomer(null)}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                                    className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors uppercase tracking-wide"
                                 >
-                                    <ChevronLeft className="w-4 h-4"/> Back to List
+                                    <ChevronLeft className="w-3 h-3"/> Back
                                 </button>
                                 <h3 className="text-xl font-bold text-slate-800">{selectedCustomer}</h3>
                             </div>
@@ -1106,23 +1128,22 @@ function App() {
 
                         {/* Summary Header for Selected Customer */}
                         {selectedCustomerStats && (
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-gradient-to-r from-slate-900 to-slate-800 rounded-xl text-white shadow-lg">
-                                <div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-slate-200 rounded-xl overflow-hidden border border-slate-200">
+                                <div className="bg-white p-5">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Stock Bought</p>
-                                    <p className="text-2xl font-mono font-bold text-gold-400">{formatGrams(selectedCustomerStats.totalVol)}</p>
-                                    <p className="text-xs text-slate-500">In selected period</p>
+                                    <p className="text-2xl font-mono font-bold text-slate-900">{formatGrams(selectedCustomerStats.totalVol)}</p>
                                 </div>
-                                <div>
+                                <div className="bg-white p-5">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Revenue</p>
-                                    <p className="text-2xl font-mono font-bold">{formatCurrency(selectedCustomerStats.totalRev)}</p>
+                                    <p className="text-2xl font-mono font-bold text-slate-900">{formatCurrency(selectedCustomerStats.totalRev)}</p>
                                 </div>
-                                <div>
+                                <div className="bg-white p-5">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Profit</p>
-                                    <p className="text-2xl font-mono font-bold text-green-400">{formatCurrency(selectedCustomerStats.totalProfit)}</p>
+                                    <p className="text-2xl font-mono font-bold text-green-600">{formatCurrency(selectedCustomerStats.totalProfit)}</p>
                                 </div>
-                                <div>
+                                <div className="bg-white p-5">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Avg Margin</p>
-                                    <p className={`text-2xl font-mono font-bold ${selectedCustomerStats.avgMargin < 1 ? 'text-red-400' : 'text-green-400'}`}>
+                                    <p className={`text-2xl font-mono font-bold ${selectedCustomerStats.avgMargin < 1 ? 'text-red-500' : 'text-green-600'}`}>
                                         {selectedCustomerStats.avgMargin.toFixed(2)}%
                                     </p>
                                 </div>
@@ -1131,24 +1152,24 @@ function App() {
 
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">
-                                <thead className="text-slate-500 bg-slate-50/50">
+                                <thead className="text-slate-500 bg-slate-50 border-y border-slate-100">
                                     <tr>
-                                        <th className="px-4 py-3">Date</th>
-                                        <th className="px-4 py-3 text-right">Volume (g)</th>
-                                        <th className="px-4 py-3 text-right">Rate (INR/g)</th>
-                                        <th className="px-4 py-3 text-right">Sale Value (Ex GST)</th>
-                                        <th className="px-4 py-3 text-right">Profit</th>
-                                        <th className="px-4 py-3 text-right">Margin %</th>
+                                        <th className="px-4 py-3 font-bold uppercase text-[10px] tracking-wider">Date</th>
+                                        <th className="px-4 py-3 text-right font-bold uppercase text-[10px] tracking-wider">Volume (g)</th>
+                                        <th className="px-4 py-3 text-right font-bold uppercase text-[10px] tracking-wider">Rate</th>
+                                        <th className="px-4 py-3 text-right font-bold uppercase text-[10px] tracking-wider">Sale Value</th>
+                                        <th className="px-4 py-3 text-right font-bold uppercase text-[10px] tracking-wider">Profit</th>
+                                        <th className="px-4 py-3 text-right font-bold uppercase text-[10px] tracking-wider">Margin %</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {selectedCustomerStats?.txs.map((sale) => {
                                         const margin = sale.taxableAmount > 0 ? ((sale.profit || 0) / sale.taxableAmount) * 100 : 0;
                                         return (
-                                            <tr key={sale.id} className="hover:bg-slate-50 border-b border-slate-50">
+                                            <tr key={sale.id} className="hover:bg-slate-50 border-b border-slate-50 transition-colors">
                                                 <td className="px-4 py-3 text-slate-500 font-mono text-xs">{sale.date}</td>
-                                                <td className="px-4 py-3 text-right font-mono text-slate-700">{formatGrams(sale.quantityGrams)}</td>
-                                                <td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(sale.ratePerGram)}</td>
+                                                <td className="px-4 py-3 text-right font-mono text-slate-700 font-medium">{formatGrams(sale.quantityGrams)}</td>
+                                                <td className="px-4 py-3 text-right font-mono text-slate-500 text-xs">{formatCurrency(sale.ratePerGram)}</td>
                                                 <td className="px-4 py-3 text-right font-mono text-slate-700">{formatCurrency(sale.taxableAmount)}</td>
                                                 <td className={`px-4 py-3 text-right font-mono font-bold ${(sale.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                     {formatCurrency(sale.profit || 0)}
@@ -1184,15 +1205,15 @@ function App() {
 
     return (
         <div className="space-y-8 animate-enter">
-            <SectionHeader title="Supplier Insights" subtitle="Track supplier performance and rate volatility." action={<div className="flex gap-2 items-center"><ExportMenu onExport={(t) => initiateExport(handleSupplierExport, t)} />{renderDateFilter()}</div>}/>
+            <SectionHeader title="Supplier Insights" subtitle="Track supplier performance and rate volatility." action={<div className="flex gap-3 items-center"><ExportMenu onExport={(t) => initiateExport(handleSupplierExport, t)} />{renderDateFilter()}</div>}/>
             
             {/* Top 3 Supplier Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">{supplierData.slice(0, 3).map((s, i) => (<div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-card flex flex-col gap-4 relative overflow-hidden group hover:shadow-lg transition-all"><div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-500/10 to-transparent rounded-full -mr-8 -mt-8 group-hover:scale-110 transition-transform"></div><div className="flex justify-between items-start z-10"><div><h3 className="font-bold text-lg text-slate-900 truncate max-w-[150px]">{s.name}</h3><p className="text-xs text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded-md inline-block mt-1">{s.volatility > 50 ? 'High Volatility' : 'Stable'}</p></div><div className="p-2 bg-slate-50 rounded-lg text-slate-400"><Factory className="w-5 h-5"/></div></div><div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4 z-10"><div><p className="text-[10px] uppercase text-slate-400 font-bold">Total Bought</p><p className="font-mono font-bold text-slate-700">{formatGrams(s.totalGramsPurchased)}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Avg Rate</p><p className="font-mono font-bold text-slate-700">{formatCurrency(s.avgRate)}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Tx Count</p><p className="font-mono font-bold text-slate-700">{s.txCount}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Volatility</p><p className="font-mono font-bold text-slate-700">{formatCurrency(s.volatility)}</p></div></div></div>))}</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">{supplierData.slice(0, 3).map((s, i) => (<div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-lg transition-all flex flex-col gap-4 relative overflow-hidden group"><div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full -mr-8 -mt-8 group-hover:scale-125 transition-transform duration-500"></div><div className="flex justify-between items-start z-10"><div><h3 className="font-bold text-lg text-slate-900 truncate max-w-[150px] group-hover:text-blue-600 transition-colors">{s.name}</h3><p className={`text-[10px] font-bold px-2 py-1 rounded-md inline-block mt-1 uppercase tracking-wider ${s.volatility > 50 ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'}`}>{s.volatility > 50 ? 'High Volatility' : 'Stable Rates'}</p></div><div className="p-2.5 bg-slate-50 rounded-xl text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors"><Factory className="w-5 h-5"/></div></div><div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4 z-10"><div><p className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Total Bought</p><p className="font-mono font-bold text-slate-800">{formatGrams(s.totalGramsPurchased)}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Avg Rate</p><p className="font-mono font-bold text-slate-800">{formatCurrency(s.avgRate)}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Transactions</p><p className="font-mono font-bold text-slate-800">{s.txCount}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Spread</p><p className="font-mono font-bold text-slate-800">{formatCurrency(s.volatility)}</p></div></div></div>))}</div>
             
             {/* Chart + Table Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Dependency Pie Chart */}
-                <Card title="Supplier Dependency Ratio" className="lg:col-span-1 min-h-[400px]">
+                <Card title="Supplier Dependency" className="lg:col-span-1 min-h-[400px]">
                     <div className="h-[350px] w-full flex items-center justify-center">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
@@ -1202,8 +1223,10 @@ function App() {
                                     nameKey="name"
                                     cx="50%"
                                     cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={80}
+                                    innerRadius={70}
+                                    outerRadius={90}
+                                    paddingAngle={2}
+                                    cornerRadius={4}
                                     stroke="none"
                                 >
                                     {supplierPieData.map((entry, index) => (
@@ -1216,8 +1239,8 @@ function App() {
                                             const data = payload[0].payload;
                                             return (
                                                 <div className="bg-white/95 backdrop-blur-md p-3 border border-blue-100 shadow-xl rounded-xl">
-                                                    <p className="text-xs font-bold text-slate-500 mb-1">{data.name}</p>
-                                                    <p className="text-sm font-mono font-bold text-blue-600">{formatGrams(data.value)}</p>
+                                                    <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">{data.name}</p>
+                                                    <p className="text-lg font-mono font-bold text-blue-600">{formatGrams(data.value)}</p>
                                                 </div>
                                             );
                                         }
@@ -1228,7 +1251,7 @@ function App() {
                                     layout="horizontal" 
                                     verticalAlign="bottom" 
                                     align="center"
-                                    wrapperStyle={{ fontSize: '10px', paddingTop: '20px' }}
+                                    wrapperStyle={{ fontSize: '10px', paddingTop: '20px', fontWeight: 500 }}
                                 />
                             </PieChart>
                         </ResponsiveContainer>
@@ -1239,28 +1262,28 @@ function App() {
                 <div className="lg:col-span-2">
                     <Card title="Detailed Supplier Ledger" className="h-full">
                         <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left">
-                                <thead className="text-slate-500 bg-slate-50/50">
+                            <table className="w-full text-sm text-left border-separate border-spacing-y-2">
+                                <thead className="text-slate-400">
                                     <tr>
-                                        <th className="px-4 py-3">Supplier</th>
-                                        <th className="px-4 py-3 text-center">Tx Count</th>
-                                        <th className="px-4 py-3 text-right">Volume (g)</th>
-                                        <th className="px-4 py-3 text-right">Avg Rate</th>
-                                        <th className="px-4 py-3 text-right">Min Rate</th>
-                                        <th className="px-4 py-3 text-right">Max Rate</th>
-                                        <th className="px-4 py-3 text-right">Volatility</th>
+                                        <th className="px-4 py-2 font-bold uppercase text-[10px] tracking-wider">Supplier</th>
+                                        <th className="px-4 py-2 text-center font-bold uppercase text-[10px] tracking-wider">Tx Count</th>
+                                        <th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Volume (g)</th>
+                                        <th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Avg Rate</th>
+                                        <th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Min Rate</th>
+                                        <th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Max Rate</th>
+                                        <th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Spread</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {supplierData.map((s, i) => (
-                                        <tr key={i} className="hover:bg-slate-50 border-b border-slate-50">
-                                            <td className="px-4 py-3 font-bold text-slate-800">{s.name}</td>
-                                            <td className="px-4 py-3 text-center text-slate-500">{s.txCount}</td>
-                                            <td className="px-4 py-3 text-right font-mono text-slate-700">{formatGrams(s.totalGramsPurchased)}</td>
-                                            <td className="px-4 py-3 text-right font-mono text-blue-600">{formatCurrency(s.avgRate)}</td>
-                                            <td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(s.minRate)}</td>
-                                            <td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(s.maxRate)}</td>
-                                            <td className="px-4 py-3 text-right font-mono font-bold text-slate-700">{formatCurrency(s.volatility)}</td>
+                                        <tr key={i} className="bg-white hover:bg-slate-50 transition-colors group">
+                                            <td className="px-4 py-3 border-y border-l border-slate-100 rounded-l-xl font-bold text-slate-800">{s.name}</td>
+                                            <td className="px-4 py-3 text-center border-y border-slate-100 text-slate-500 text-xs font-medium">{s.txCount}</td>
+                                            <td className="px-4 py-3 text-right border-y border-slate-100 font-mono text-slate-700 font-bold">{formatGrams(s.totalGramsPurchased)}</td>
+                                            <td className="px-4 py-3 text-right border-y border-slate-100 font-mono text-blue-600 text-xs font-medium">{formatCurrency(s.avgRate)}</td>
+                                            <td className="px-4 py-3 text-right border-y border-slate-100 font-mono text-slate-400 text-xs">{formatCurrency(s.minRate)}</td>
+                                            <td className="px-4 py-3 text-right border-y border-slate-100 font-mono text-slate-400 text-xs">{formatCurrency(s.maxRate)}</td>
+                                            <td className="px-4 py-3 text-right border-y border-r border-slate-100 rounded-r-xl font-mono font-bold text-slate-600 text-xs">{formatCurrency(s.volatility)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -1292,7 +1315,7 @@ function App() {
 
       return (
         <div className="space-y-8 animate-enter">
-             <SectionHeader title="Price Intelligence & Spread Analysis" subtitle="Pricing trends, spreads, and supplier consistency." action={<div className="flex gap-2 items-center"><ExportMenu onExport={(t) => initiateExport((type) => handlePriceExport(type, priceMetrics.purchases), t)} />{renderDateFilter()}</div>}/>
+             <SectionHeader title="Price Intelligence & Spread Analysis" subtitle="Pricing trends, spreads, and supplier consistency." action={<div className="flex gap-3 items-center"><ExportMenu onExport={(t) => initiateExport((type) => handlePriceExport(type, priceMetrics.purchases), t)} />{renderDateFilter()}</div>}/>
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                  <Card title="Selling Price Trend (Avg/g)" delay={100} className="min-h-[400px]">
                     <div className="h-full w-full">
@@ -1301,21 +1324,21 @@ function App() {
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? "#334155" : "#e2e8f0"} />
                                 <XAxis 
                                     dataKey="date" 
-                                    axisLine={{ stroke: '#cbd5e1' }} 
+                                    axisLine={{ stroke: '#e2e8f0' }} 
                                     tickLine={false} 
-                                    tick={{fill: isDarkMode ? '#94a3b8' : '#64748b', fontSize: 11, fontWeight: 500}} 
+                                    tick={{fill: '#64748b', fontSize: 10, fontWeight: 500}} 
                                     dy={10}
                                 />
                                 <YAxis 
                                     domain={['auto', 'auto']} 
                                     axisLine={false} 
                                     tickLine={false} 
-                                    tick={{fill: isDarkMode ? '#94a3b8' : '#64748b', fontSize: 11}} 
+                                    tick={{fill: '#64748b', fontSize: 10}} 
                                     tickFormatter={(v) => `₹${v}`} 
                                 />
                                 <Tooltip 
                                     cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '4 4' }}
-                                    contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', backgroundColor: isDarkMode ? '#1e293b' : '#fff', color: isDarkMode ? '#fff' : '#000' }} 
+                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', backgroundColor: '#fff', color: '#000' }} 
                                     formatter={(val:number) => [formatCurrency(val), 'Avg Sell Price']}
                                 />
                                 <Line 
@@ -1323,16 +1346,16 @@ function App() {
                                     dataKey="avgSellPrice" 
                                     stroke="#b4761e" 
                                     strokeWidth={3} 
-                                    dot={{ r: 5, fill: "#b4761e", stroke: "#fff", strokeWidth: 2 }} // Distinct markers like the image
-                                    activeDot={{ r: 8, fill: "#b4761e", stroke: "#fff", strokeWidth: 2 }} 
+                                    dot={{ r: 4, fill: "#b4761e", stroke: "#fff", strokeWidth: 2 }} // Distinct markers like the image
+                                    activeDot={{ r: 6, fill: "#b4761e", stroke: "#fff", strokeWidth: 2 }} 
                                 />
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
                  </Card>
-                 <Card title="Supplier Cost Consistency" delay={200} className="min-h-[400px]"><div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="text-slate-500 bg-slate-50/50"><tr><th className="px-4 py-3">Supplier</th><th className="px-4 py-3 text-right">Avg Rate</th><th className="px-4 py-3 text-right">Min Rate</th><th className="px-4 py-3 text-right">Max Rate</th><th className="px-4 py-3 text-right">Volatility (Spread)</th></tr></thead><tbody>{supplierData.map((s, i) => (<tr key={i} className="hover:bg-slate-50 border-b border-slate-50"><td className="px-4 py-3 font-medium text-slate-900">{s.name}</td><td className="px-4 py-3 text-right font-mono text-blue-600">{formatCurrency(s.avgRate)}</td><td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(s.minRate)}</td><td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(s.maxRate)}</td><td className="px-4 py-3 text-right font-mono font-bold text-slate-700">{formatCurrency(s.volatility)}</td></tr>))}</tbody></table></div></Card>
+                 <Card title="Supplier Cost Consistency" delay={200} className="min-h-[400px]"><div className="overflow-x-auto"><table className="w-full text-sm text-left border-separate border-spacing-y-2"><thead className="text-slate-400"><tr><th className="px-4 py-2 font-bold uppercase text-[10px] tracking-wider">Supplier</th><th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Avg Rate</th><th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Min Rate</th><th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Max Rate</th><th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Spread</th></tr></thead><tbody>{supplierData.map((s, i) => (<tr key={i} className="bg-white hover:bg-slate-50 transition-colors"><td className="px-4 py-3 border-y border-l border-slate-100 rounded-l-xl font-medium text-slate-900">{s.name}</td><td className="px-4 py-3 text-right border-y border-slate-100 font-mono text-blue-600 text-xs font-bold">{formatCurrency(s.avgRate)}</td><td className="px-4 py-3 text-right border-y border-slate-100 font-mono text-slate-500 text-xs">{formatCurrency(s.minRate)}</td><td className="px-4 py-3 text-right border-y border-slate-100 font-mono text-slate-500 text-xs">{formatCurrency(s.maxRate)}</td><td className="px-4 py-3 text-right border-y border-r border-slate-100 rounded-r-xl font-mono font-bold text-slate-700 text-xs">{formatCurrency(s.volatility)}</td></tr>))}</tbody></table></div></Card>
              </div>
-             <Card title="Detailed Purchase Transactions" delay={300}><div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="text-slate-500 bg-slate-50/50"><tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Supplier</th><th className="px-4 py-3 text-right">Qty (g)</th><th className="px-4 py-3 text-right">Purchase Rate (₹/g)</th><th className="px-4 py-3 text-right">Taxable (Ex-Tax)</th></tr></thead><tbody>{priceMetrics.purchases.length === 0 ? (<tr><td colSpan={5} className="text-center py-8 text-slate-400">No purchases in this period.</td></tr>) : priceMetrics.purchases.sort((a,b) => b.date.localeCompare(a.date)).map(inv => (<tr key={inv.id} className="hover:bg-slate-50 border-b border-slate-50"><td className="px-4 py-3 text-slate-500">{inv.date}</td><td className="px-4 py-3 font-medium text-slate-900">{inv.partyName}</td><td className="px-4 py-3 text-right font-mono text-slate-700">{formatGrams(inv.quantityGrams)}</td><td className="px-4 py-3 text-right font-mono text-blue-600">{formatCurrency(inv.ratePerGram)}</td><td className="px-4 py-3 text-right font-mono text-slate-700">{formatCurrency(inv.taxableAmount)}</td></tr>))}</tbody></table></div></Card>
+             <Card title="Detailed Purchase Transactions" delay={300}><div className="overflow-x-auto"><table className="w-full text-sm text-left border-separate border-spacing-y-2"><thead className="text-slate-400"><tr><th className="px-4 py-2 font-bold uppercase text-[10px] tracking-wider">Date</th><th className="px-4 py-2 font-bold uppercase text-[10px] tracking-wider">Supplier</th><th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Qty (g)</th><th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Rate (₹/g)</th><th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Total</th></tr></thead><tbody>{priceMetrics.purchases.length === 0 ? (<tr><td colSpan={5} className="text-center py-12 text-slate-400 italic">No purchases in this period.</td></tr>) : priceMetrics.purchases.sort((a,b) => b.date.localeCompare(a.date)).map(inv => (<tr key={inv.id} className="bg-white hover:bg-slate-50 transition-colors"><td className="px-4 py-3 border-y border-l border-slate-100 rounded-l-xl text-slate-500 text-xs font-mono">{inv.date}</td><td className="px-4 py-3 border-y border-slate-100 font-medium text-slate-900">{inv.partyName}</td><td className="px-4 py-3 text-right border-y border-slate-100 font-mono text-slate-700 font-bold">{formatGrams(inv.quantityGrams)}</td><td className="px-4 py-3 text-right border-y border-slate-100 font-mono text-blue-600 text-xs">{formatCurrency(inv.ratePerGram)}</td><td className="px-4 py-3 text-right border-y border-r border-slate-100 rounded-r-xl font-mono text-slate-700 font-medium text-xs">{formatCurrency(inv.taxableAmount)}</td></tr>))}</tbody></table></div></Card>
         </div>
       );
   }
@@ -1343,10 +1366,6 @@ function App() {
       const hasRate = !isNaN(rate) && rate > 0;
       const unrealizedProfit = hasRate ? (currentStock * rate) - fifoValue : 0;
       
-      // Calculate all customers present in the data
-      const allCustomers = useMemo(() => customerData.map(c => c.name), [customerData]);
-
-      // Calculate aggregated total volume per customer for Pie Chart
       const pieData = useMemo(() => {
           const stats: Record<string, number> = {};
           filteredInvoices.forEach(inv => {
@@ -1359,16 +1378,15 @@ function App() {
             .sort((a, b) => b.value - a.value);
       }, [filteredInvoices]);
 
-      // Extended Green Spectrum Palette for multiple slices
       const GREEN_SHADES = [
         '#022c22', '#064e3b', '#065f46', '#047857', '#059669', '#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#0f766e', '#14b8a6', '#2dd4bf'
       ];
 
       return (
-      <div className="space-y-8"><SectionHeader title="Analytics & Reports" subtitle="Deep dive into your business performance." action={<div className="flex gap-2 items-center"><ExportMenu onExport={(t) => initiateExport((type) => addToast('SUCCESS', 'For detailed exports, use specific sections or Generate PDF below.'), t)} />{renderDateFilter()}</div>}/>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatsCard title="Inventory Turnover" value={`${turnoverStats.turnoverRatio.toFixed(2)}x`} subValue="Ratio (COGS / Avg Inv)" icon={Activity} isActive /><StatsCard title="Avg Days to Sell" value={`${Math.round(turnoverStats.avgDaysToSell)} Days`} subValue="Velocity" icon={Timer} /><StatsCard title="Realized Profit" value={formatCurrency(realizedProfit)} subValue="From Sales" icon={Wallet} /><div className="bg-slate-900 rounded-2xl p-6 text-white relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 right-0 w-24 h-24 bg-gold-500/20 rounded-full blur-3xl -mr-8 -mt-8"></div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Unrealized Profit (Est)</p><div className="flex items-end gap-2 mb-2"><input type="number" placeholder="Mkt Rate..." value={marketRate} onChange={(e) => setMarketRate(e.target.value)} className="w-24 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white focus:border-gold-500 outline-none"/></div><h3 className={`text-2xl font-mono font-bold ${unrealizedProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{hasRate ? formatCurrency(unrealizedProfit) : '---'}</h3></div></div>
+      <div className="space-y-8 animate-enter"><SectionHeader title="Analytics & Reports" subtitle="Deep dive into your business performance." action={<div className="flex gap-3 items-center"><ExportMenu onExport={(t) => initiateExport((type) => addToast('SUCCESS', 'For detailed exports, use specific sections or Generate PDF below.'), t)} />{renderDateFilter()}</div>}/>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatsCard title="Inventory Turnover" value={`${turnoverStats.turnoverRatio.toFixed(2)}x`} subValue="Ratio (COGS / Avg Inv)" icon={Activity} isActive /><StatsCard title="Avg Days to Sell" value={`${Math.round(turnoverStats.avgDaysToSell)} Days`} subValue="Velocity" icon={Timer} /><StatsCard title="Realized Profit" value={formatCurrency(realizedProfit)} subValue="From Sales" icon={Wallet} /><div className="bg-slate-900 rounded-2xl p-6 text-white relative overflow-hidden flex flex-col justify-center shadow-xl border border-slate-800"><div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/10 rounded-full blur-3xl -mr-8 -mt-8 animate-pulse"></div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Unrealized Profit (Est)</p><div className="flex items-center gap-2 mb-2"><span className="text-slate-500 text-sm">@</span><input type="number" placeholder="Mkt Rate..." value={marketRate} onChange={(e) => setMarketRate(e.target.value)} className="w-28 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:border-gold-500 outline-none transition-all placeholder:text-slate-600"/></div><h3 className={`text-3xl font-mono font-bold tracking-tight ${unrealizedProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{hasRate ? formatCurrency(unrealizedProfit) : '---'}</h3></div></div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
                 { 
                     id: 'CUSTOMER', 
@@ -1398,15 +1416,15 @@ function App() {
                 <div 
                     key={rpt.id} 
                     onClick={rpt.handler} 
-                    className="group bg-white p-6 rounded-2xl border border-slate-100 shadow-card hover:shadow-lg transition-all cursor-pointer flex items-center gap-5 animate-slide-up" 
+                    className="group bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer flex items-center gap-5 animate-slide-up" 
                     style={{ animationDelay: `${i*100}ms` }}
                 >
-                    <div className={`p-4 rounded-xl ${rpt.bg} ${rpt.color} group-hover:scale-110 transition-transform`}>
+                    <div className={`p-4 rounded-xl ${rpt.bg} ${rpt.color} group-hover:scale-110 transition-transform duration-300`}>
                         <rpt.icon className="w-6 h-6"/>
                     </div>
                     <div>
-                        <h3 className="font-bold text-slate-900 text-lg">{rpt.title}</h3>
-                        <p className="text-slate-400 text-sm mt-0.5">Generate PDF</p>
+                        <h3 className="font-bold text-slate-900 text-lg group-hover:text-gold-600 transition-colors">{rpt.title}</h3>
+                        <p className="text-slate-400 text-xs mt-1 font-medium uppercase tracking-wide">Generate PDF</p>
                     </div>
                     <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0">
                         <Download className="w-5 h-5 text-slate-300"/>
@@ -1416,7 +1434,7 @@ function App() {
         </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <Card title="Profit Trend" className="lg:col-span-2" delay={300}><div className="h-64 md:h-80 w-full"><ResponsiveContainer><AreaChart data={profitTrendData}><defs><linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? "#334155" : "#f1f5f9"}/><XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: isDarkMode ? '#94a3b8' : '#94a3b8', fontSize: 10, dy: 10}}/><YAxis axisLine={false} tickLine={false} tick={{fill: isDarkMode ? '#94a3b8' : '#94a3b8', fontSize: 10}} tickFormatter={(v) => `${v/1000}k`}/><Tooltip contentStyle={{backgroundColor: isDarkMode ? '#1e293b' : '#fff', borderRadius: '12px', border: 'none', color: isDarkMode ? '#fff' : '#000', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}} formatter={(value: number) => [formatCurrency(value), 'Net Profit']}/><Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" /></AreaChart></ResponsiveContainer></div></Card>
+          <Card title="Profit Trend" className="lg:col-span-2" delay={300}><div className="h-72 w-full"><ResponsiveContainer><AreaChart data={profitTrendData}><defs><linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/><XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, dy: 10}}/><YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} tickFormatter={(v) => `${v/1000}k`}/><Tooltip contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: 'none', color: '#000', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}} formatter={(value: number) => [formatCurrency(value), 'Net Profit']}/><Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" /></AreaChart></ResponsiveContainer></div></Card>
           
           <Card title="Customer Volume Share" className="lg:col-span-1 min-h-[400px]" delay={400}>
                 <div className="h-[350px] w-full flex items-center justify-center">
@@ -1428,8 +1446,10 @@ function App() {
                                 nameKey="name"
                                 cx="50%"
                                 cy="50%"
-                                innerRadius={60}
-                                outerRadius={80}
+                                innerRadius={70}
+                                outerRadius={90}
+                                paddingAngle={2}
+                                cornerRadius={4}
                                 stroke="none"
                             >
                                 {pieData.map((entry, index) => (
@@ -1442,8 +1462,8 @@ function App() {
                                         const data = payload[0].payload;
                                         return (
                                             <div className="bg-white/95 backdrop-blur-md p-3 border border-emerald-100 shadow-xl rounded-xl">
-                                                <p className="text-xs font-bold text-slate-500 mb-1">{data.name}</p>
-                                                <p className="text-sm font-mono font-bold text-emerald-700">{formatGrams(data.value)}</p>
+                                                <p className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">{data.name}</p>
+                                                <p className="text-lg font-mono font-bold text-emerald-600">{formatGrams(data.value)}</p>
                                             </div>
                                         );
                                     }
@@ -1459,25 +1479,17 @@ function App() {
   }
 
   const BusinessLedgerView = () => {
-      // Calculate monthly aggregates
       const { monthlyData, totals } = useMemo(() => {
           const stats: Record<string, { turnover: number, profit: number, tax: number, qty: number }> = {};
           let totalTurnover = 0;
           let totalProfit = 0;
           let totalQty = 0;
 
-          // Robust filtering and processing
-          invoices
-            .filter(i => i.type === 'SALE')
-            .forEach(inv => {
-                // Parse date strings manually to avoid timezone issues
-                // inv.date is YYYY-MM-DD
+          invoices.filter(i => i.type === 'SALE').forEach(inv => {
                 const parts = inv.date.split('-');
                 if (parts.length !== 3) return;
-                
                 const year = parseInt(parts[0]);
-                const monthIndex = parseInt(parts[1]) - 1; // 0-11
-                
+                const monthIndex = parseInt(parts[1]) - 1;
                 const key = `${year}-${monthIndex}`;
                 
                 if (!stats[key]) stats[key] = { turnover: 0, profit: 0, tax: 0, qty: 0 };
@@ -1494,41 +1506,38 @@ function App() {
 
           const monthly = Object.entries(stats).map(([key, val]) => {
               const [y, m] = key.split('-');
-              return {
-                  date: new Date(parseInt(y), parseInt(m), 1),
-                  ...val
-              };
+              return { date: new Date(parseInt(y), parseInt(m), 1), ...val };
           }).sort((a,b) => b.date.getTime() - a.date.getTime());
 
           const totalMargin = totalTurnover > 0 ? (totalProfit / totalTurnover) * 100 : 0;
 
-          return { 
-              monthlyData: monthly, 
-              totals: { turnover: totalTurnover, profit: totalProfit, qty: totalQty, margin: totalMargin }
-          };
+          return { monthlyData: monthly, totals: { turnover: totalTurnover, profit: totalProfit, qty: totalQty, margin: totalMargin } };
       }, [invoices]);
 
       return (
-          <div className="space-y-6 animate-enter">
+          <div className="space-y-8 animate-enter">
               <SectionHeader 
                    title="Business Ledger" 
                    subtitle="Monthly financial breakdown and performance." 
                    action={<ExportMenu onExport={(t) => initiateExport((type) => handleLedgerExport(type, monthlyData, totals), t)} />}
               />
 
-              <div className="bg-slate-900 rounded-2xl p-8 text-white flex flex-col md:flex-row justify-between items-center shadow-2xl shadow-slate-900/20 mb-6">
+              <div className="bg-slate-900 rounded-2xl p-8 text-white flex flex-col md:flex-row justify-between items-center shadow-2xl shadow-slate-900/20 mb-8 border border-slate-800">
                   <div className="text-center md:text-left mb-6 md:mb-0">
-                      <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-2">Lifetime Turnover (Ex GST)</p>
-                      <h2 className="text-4xl md:text-5xl font-mono font-bold text-white mb-1">{formatCurrency(totals.turnover)}</h2>
-                      <p className="text-gold-400 font-medium">Net Profit: {formatCurrency(totals.profit)} ({totals.margin.toFixed(2)}%)</p>
+                      <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mb-2">Lifetime Turnover (Ex GST)</p>
+                      <h2 className="text-4xl md:text-5xl font-mono font-bold text-white mb-2">{formatCurrency(totals.turnover)}</h2>
+                      <div className="flex items-center gap-3">
+                          <span className="bg-green-500/10 text-green-400 px-3 py-1 rounded-lg text-xs font-bold border border-green-500/20">Net Profit: {formatCurrency(totals.profit)}</span>
+                          <span className="text-slate-500 text-xs font-medium">Margin: {totals.margin.toFixed(2)}%</span>
+                      </div>
                   </div>
-                  <div className="flex gap-8 border-t md:border-t-0 md:border-l border-slate-700 pt-6 md:pt-0 md:pl-8">
+                  <div className="flex gap-10 border-t md:border-t-0 md:border-l border-slate-700/50 pt-6 md:pt-0 md:pl-10">
                        <div>
-                           <p className="text-slate-500 text-xs font-bold uppercase mb-1">Total Gold Sold</p>
+                           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1">Total Gold Sold</p>
                            <p className="text-2xl font-mono font-bold">{formatGrams(totals.qty)}</p>
                        </div>
                        <div>
-                           <p className="text-slate-500 text-xs font-bold uppercase mb-1">Active Batches</p>
+                           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1">Active Batches</p>
                            <p className="text-2xl font-mono font-bold">{inventory.filter(b => b.remainingQuantity > 0).length}</p>
                        </div>
                   </div>
@@ -1536,33 +1545,33 @@ function App() {
 
               <Card title="Monthly Breakdown">
                   <div className="overflow-x-auto">
-                      <table className="w-full text-sm text-left">
-                          <thead className="text-slate-500 bg-slate-50/50">
+                      <table className="w-full text-sm text-left border-separate border-spacing-y-2">
+                          <thead className="text-slate-400">
                               <tr>
-                                  <th className="px-4 py-3">Month</th>
-                                  <th className="px-4 py-3 text-right">Turnover (Ex GST)</th>
-                                  <th className="px-4 py-3 text-right">GST Collected</th>
-                                  <th className="px-4 py-3 text-right">Net Profit</th>
-                                  <th className="px-4 py-3 text-right">Margin %</th>
-                                  <th className="px-4 py-3 text-right">Qty Sold</th>
+                                  <th className="px-4 py-2 font-bold uppercase text-[10px] tracking-wider">Month</th>
+                                  <th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Turnover (Ex GST)</th>
+                                  <th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">GST Collected</th>
+                                  <th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Net Profit</th>
+                                  <th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Margin %</th>
+                                  <th className="px-4 py-2 text-right font-bold uppercase text-[10px] tracking-wider">Qty Sold</th>
                               </tr>
                           </thead>
                           <tbody>
                               {monthlyData.length === 0 ? (
-                                <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400 italic">No sales data recorded yet.</td></tr>
+                                <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-400 italic">No sales data recorded yet.</td></tr>
                               ) : (
                                 monthlyData.map((m, i) => (
-                                  <tr key={i} className="hover:bg-slate-50 border-b border-slate-50">
-                                      <td className="px-4 py-3 font-bold text-slate-800">{m.date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</td>
-                                      <td className="px-4 py-3 text-right font-mono text-slate-700">{formatCurrency(m.turnover)}</td>
-                                      <td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(m.tax)}</td>
-                                      <td className="px-4 py-3 text-right font-mono text-green-600 font-bold">{formatCurrency(m.profit)}</td>
-                                      <td className="px-4 py-3 text-right font-mono">
-                                          <span className={`px-2 py-1 rounded text-xs font-bold ${m.turnover > 0 && (m.profit/m.turnover) > 0.01 ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
+                                  <tr key={i} className="bg-white hover:bg-slate-50 transition-colors group">
+                                      <td className="px-4 py-3 border-y border-l border-slate-100 rounded-l-xl font-bold text-slate-800">{m.date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</td>
+                                      <td className="px-4 py-3 border-y border-slate-100 text-right font-mono text-slate-700">{formatCurrency(m.turnover)}</td>
+                                      <td className="px-4 py-3 border-y border-slate-100 text-right font-mono text-slate-500 text-xs">{formatCurrency(m.tax)}</td>
+                                      <td className="px-4 py-3 border-y border-slate-100 text-right font-mono text-green-600 font-bold">{formatCurrency(m.profit)}</td>
+                                      <td className="px-4 py-3 border-y border-slate-100 text-right font-mono">
+                                          <span className={`px-2 py-1 rounded text-[10px] font-bold ${m.turnover > 0 && (m.profit/m.turnover) > 0.01 ? 'bg-green-50 text-green-600' : 'bg-slate-100 text-slate-600'}`}>
                                               {(m.turnover > 0 ? (m.profit/m.turnover)*100 : 0).toFixed(2)}%
                                           </span>
                                       </td>
-                                      <td className="px-4 py-3 text-right font-mono text-slate-600">{formatGrams(m.qty)}</td>
+                                      <td className="px-4 py-3 border-y border-r border-slate-100 rounded-r-xl text-right font-mono text-slate-600">{formatGrams(m.qty)}</td>
                                   </tr>
                                 ))
                               )}
@@ -1575,8 +1584,8 @@ function App() {
   };
 
   const InvoicesView = () => (
-      <div className="flex flex-col lg:flex-row gap-6 relative items-start h-full">
-          <div className="w-full lg:w-[380px] xl:w-[420px] flex-shrink-0 lg:sticky lg:top-0 transition-all">
+      <div className="flex flex-col lg:flex-row gap-8 relative items-start h-full">
+          <div className="w-full lg:w-[380px] xl:w-[420px] flex-shrink-0 lg:sticky lg:top-0 transition-all z-20">
               <InvoiceForm 
                 onAdd={handleAddInvoice} 
                 currentStock={currentStock} 
@@ -1589,29 +1598,28 @@ function App() {
           <div className="flex-1 w-full min-w-0">
               <Card title="Recent Transactions" className="min-h-[600px] h-full flex flex-col" delay={200}
                  action={
-                     <div className="flex gap-2 items-center">
+                     <div className="flex gap-3 items-center">
                         <ExportMenu onExport={(t) => initiateExport(handleInvoicesExport, t)} />
                         {renderDateFilter()}
                      </div>
                  }
               >
-                  {/* ... Table ... */}
                   <div className="overflow-auto flex-1 -mx-6 px-6 relative custom-scrollbar">
                       <table className="w-full text-sm text-left border-separate border-spacing-y-2 min-w-[1000px]">
                           <thead className="text-slate-400 sticky top-0 bg-white/95 backdrop-blur z-10">
                               <tr>
-                                  <th className="px-4 py-3 font-semibold uppercase text-xs tracking-wider border-b border-slate-50">Date</th>
-                                  <th className="px-4 py-3 font-semibold uppercase text-xs tracking-wider border-b border-slate-50">Type</th>
-                                  <th className="px-4 py-3 font-semibold uppercase text-xs tracking-wider border-b border-slate-50">Party</th>
-                                  <th className="px-4 py-3 font-semibold uppercase text-xs tracking-wider border-b border-slate-50 text-right">Qty</th>
-                                  <th className="px-4 py-3 font-semibold uppercase text-xs tracking-wider border-b border-slate-50 text-right">Rate/g</th>
-                                  <th className="px-4 py-3 font-semibold uppercase text-xs tracking-wider border-b border-slate-50 text-right">My Cost/g</th>
-                                  <th className="px-4 py-3 font-semibold uppercase text-xs tracking-wider border-b border-slate-50 text-right">Taxable (Ex GST)</th>
-                                  <th className="px-4 py-3 font-semibold uppercase text-xs tracking-wider border-b border-slate-50 text-right">GST</th>
-                                  <th className="px-4 py-3 font-semibold uppercase text-xs tracking-wider border-b border-slate-50 text-right">Total (Inc)</th>
-                                  <th className="px-4 py-3 font-semibold uppercase text-xs tracking-wider border-b border-slate-50 text-right">My Total Cost (Ex GST)</th>
-                                  <th className="px-4 py-3 font-semibold uppercase text-xs tracking-wider border-b border-slate-50 text-right">Profit</th>
-                                  <th className="px-4 py-3 font-semibold uppercase text-xs tracking-wider border-b border-slate-50 text-center">Action</th>
+                                  <th className="px-4 py-3 font-bold uppercase text-[10px] tracking-wider border-b border-slate-50">Date</th>
+                                  <th className="px-4 py-3 font-bold uppercase text-[10px] tracking-wider border-b border-slate-50">Type</th>
+                                  <th className="px-4 py-3 font-bold uppercase text-[10px] tracking-wider border-b border-slate-50">Party</th>
+                                  <th className="px-4 py-3 font-bold uppercase text-[10px] tracking-wider border-b border-slate-50 text-right">Qty</th>
+                                  <th className="px-4 py-3 font-bold uppercase text-[10px] tracking-wider border-b border-slate-50 text-right">Rate/g</th>
+                                  <th className="px-4 py-3 font-bold uppercase text-[10px] tracking-wider border-b border-slate-50 text-right">My Cost/g</th>
+                                  <th className="px-4 py-3 font-bold uppercase text-[10px] tracking-wider border-b border-slate-50 text-right">Taxable</th>
+                                  <th className="px-4 py-3 font-bold uppercase text-[10px] tracking-wider border-b border-slate-50 text-right">GST</th>
+                                  <th className="px-4 py-3 font-bold uppercase text-[10px] tracking-wider border-b border-slate-50 text-right">Total</th>
+                                  <th className="px-4 py-3 font-bold uppercase text-[10px] tracking-wider border-b border-slate-50 text-right">Cost</th>
+                                  <th className="px-4 py-3 font-bold uppercase text-[10px] tracking-wider border-b border-slate-50 text-right">Profit</th>
+                                  <th className="px-4 py-3 font-bold uppercase text-[10px] tracking-wider border-b border-slate-50 text-center">Action</th>
                               </tr>
                           </thead>
                           <tbody>
@@ -1621,12 +1629,12 @@ function App() {
                                   filteredInvoices.sort((a,b) => b.date.localeCompare(a.date)).map((inv, i) => {
                                       const myCostPerGram = inv.type === 'SALE' && inv.cogs ? inv.cogs / inv.quantityGrams : null;
                                       return (
-                                      <tr key={inv.id} className="group hover:scale-[1.01] transition-transform duration-200">
-                                          <td className="px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-l border-transparent group-hover:border-slate-100 text-slate-500 font-mono text-xs rounded-l-xl">{inv.date}</td>
-                                          <td className="px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-transparent group-hover:border-slate-100">
-                                              <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border ${inv.type === 'PURCHASE' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-green-50 text-green-600 border-green-100'}`}>{inv.type === 'PURCHASE' ? 'In' : 'Out'}</span>
+                                      <tr key={inv.id} className="group hover:bg-slate-50 transition-colors">
+                                          <td className="px-4 py-3 bg-white border-y border-l border-slate-100 rounded-l-xl text-slate-500 font-mono text-xs">{inv.date}</td>
+                                          <td className="px-4 py-3 bg-white border-y border-slate-100">
+                                              <span className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border ${inv.type === 'PURCHASE' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-green-50 text-green-600 border-green-100'}`}>{inv.type === 'PURCHASE' ? 'In' : 'Out'}</span>
                                           </td>
-                                          <td className="px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-transparent group-hover:border-slate-100 font-medium text-slate-900 truncate max-w-[150px]">
+                                          <td className="px-4 py-3 bg-white border-y border-slate-100 font-medium text-slate-900 truncate max-w-[150px]">
                                               <div className="flex items-center justify-between gap-2 group/edit">
                                                   <span className="truncate">{inv.partyName}</span>
                                                   <button 
@@ -1638,29 +1646,29 @@ function App() {
                                                   </button>
                                               </div>
                                           </td>
-                                          <td className="px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-transparent group-hover:border-slate-100 font-mono text-slate-600 text-right">{formatGrams(inv.quantityGrams)}</td>
-                                          <td className="px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-transparent group-hover:border-slate-100 font-mono text-slate-500 text-right">{formatCurrency(inv.ratePerGram).replace('.00','')}</td>
-                                          <td className="px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-transparent group-hover:border-slate-100 font-mono text-slate-500 text-right">
+                                          <td className="px-4 py-3 bg-white border-y border-slate-100 font-mono text-slate-700 text-right font-bold">{formatGrams(inv.quantityGrams)}</td>
+                                          <td className="px-4 py-3 bg-white border-y border-slate-100 font-mono text-slate-500 text-right text-xs">{formatCurrency(inv.ratePerGram).replace('.00','')}</td>
+                                          <td className="px-4 py-3 bg-white border-y border-slate-100 font-mono text-slate-400 text-right text-xs">
                                               {myCostPerGram ? formatCurrency(myCostPerGram).replace('.00','') : '-'}
                                           </td>
-                                          <td className="px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-transparent group-hover:border-slate-100 font-mono font-medium text-slate-900 text-right">{formatCurrency(inv.taxableAmount)}</td>
-                                          <td className="px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-transparent group-hover:border-slate-100 font-mono text-slate-500 text-right">{formatCurrency(inv.gstAmount)}</td>
-                                          <td className="px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-transparent group-hover:border-slate-100 font-mono text-slate-400 text-right">{formatCurrency(inv.totalAmount)}</td>
-                                          <td className="px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-transparent group-hover:border-slate-100 font-mono font-medium text-slate-700 text-right">
+                                          <td className="px-4 py-3 bg-white border-y border-slate-100 font-mono font-medium text-slate-900 text-right">{formatCurrency(inv.taxableAmount)}</td>
+                                          <td className="px-4 py-3 bg-white border-y border-slate-100 font-mono text-slate-400 text-right text-xs">{formatCurrency(inv.gstAmount)}</td>
+                                          <td className="px-4 py-3 bg-white border-y border-slate-100 font-mono text-slate-500 text-right text-xs">{formatCurrency(inv.totalAmount)}</td>
+                                          <td className="px-4 py-3 bg-white border-y border-slate-100 font-mono font-medium text-slate-500 text-right text-xs">
                                               {formatCurrency(inv.type === 'SALE' ? (inv.cogs || 0) : inv.taxableAmount)}
                                           </td>
                                           
                                           {/* PROFIT CELL WITH AUDIT TOOLTIP */}
-                                          <td className={`px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-transparent group-hover:border-slate-100 font-mono font-bold text-right relative group/tooltip ${(inv.profit || 0) > 0 ? 'text-green-600' : (inv.profit || 0) < 0 ? 'text-red-600' : 'text-slate-300'}`}>
+                                          <td className={`px-4 py-3 bg-white border-y border-slate-100 font-mono font-bold text-right relative group/tooltip ${(inv.profit || 0) > 0 ? 'text-green-600' : (inv.profit || 0) < 0 ? 'text-red-600' : 'text-slate-300'}`}>
                                               {inv.type === 'SALE' ? (
                                                   <>
                                                       {formatCurrency(inv.profit || 0)}
                                                       {inv.fifoLog && inv.fifoLog.length > 0 && (
-                                                          <div className="absolute right-0 bottom-full mb-2 w-64 bg-slate-900 text-white text-[10px] p-3 rounded-xl shadow-xl z-20 hidden group-hover/tooltip:block pointer-events-none">
-                                                              <p className="font-bold text-gold-400 mb-1 border-b border-slate-700 pb-1 uppercase tracking-wide">FIFO Consumption Log</p>
-                                                              <ul className="space-y-1 opacity-90 font-mono">
+                                                          <div className="absolute right-0 bottom-full mb-2 w-64 bg-slate-900 text-white text-[10px] p-4 rounded-xl shadow-xl z-20 hidden group-hover/tooltip:block pointer-events-none border border-slate-800">
+                                                              <p className="font-bold text-gold-400 mb-2 border-b border-slate-700 pb-1 uppercase tracking-wide">FIFO Consumption Log</p>
+                                                              <ul className="space-y-1.5 opacity-90 font-mono text-xs">
                                                                   {inv.fifoLog.map((log, idx) => (
-                                                                      <li key={idx}>• {log}</li>
+                                                                      <li key={idx} className="flex items-start gap-1"><span className="text-slate-500 mt-0.5">•</span> {log}</li>
                                                                   ))}
                                                               </ul>
                                                           </div>
@@ -1669,9 +1677,9 @@ function App() {
                                               ) : '-'}
                                           </td>
 
-                                          <td className="px-4 py-3 bg-slate-50/50 group-hover:bg-white border-y border-r border-transparent group-hover:border-slate-100 rounded-r-xl text-center">
-                                              <button onClick={() => initiateDelete(inv.id)} className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors">
-                                                  <Trash2 className="w-4 h-4"/>
+                                          <td className="px-4 py-3 bg-white border-y border-r border-slate-100 rounded-r-xl text-center">
+                                              <button onClick={() => initiateDelete(inv.id)} className="p-2 rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors">
+                                                  <Trash2 className="w-3.5 h-3.5"/>
                                               </button>
                                           </td>
                                       </tr>
@@ -1701,27 +1709,29 @@ function App() {
         
         {/* Sync Indicator */}
         {isSyncing && (
-             <div className="fixed bottom-6 left-6 z-50 bg-slate-900 text-white px-4 py-2 rounded-xl flex items-center gap-3 shadow-xl animate-slide-up">
+             <div className="fixed bottom-6 left-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl flex items-center gap-3 shadow-2xl shadow-slate-900/30 animate-slide-up border border-slate-800">
                  <Loader2 className="w-4 h-4 animate-spin text-gold-500" />
-                 <span className="text-xs font-bold">Syncing data...</span>
+                 <span className="text-xs font-bold uppercase tracking-wider">Syncing data...</span>
              </div>
         )}
 
         {/* Delete Confirmation Modal */}
         {showDeleteModal && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
-                 <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-slide-up">
-                      <div className="flex flex-col items-center text-center gap-3 mb-4">
-                           <div className="p-3 bg-red-100 text-red-600 rounded-full"><Trash2 className="w-6 h-6"/></div>
-                           <h3 className="text-lg font-bold text-slate-900">Confirm Deletion</h3>
-                           <p className="text-sm text-slate-500">This action is irreversible. Enter admin password to confirm.</p>
+                 <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-slide-up border border-slate-100">
+                      <div className="flex flex-col items-center text-center gap-3 mb-6">
+                           <div className="p-4 bg-red-50 text-red-600 rounded-full border border-red-100"><Trash2 className="w-6 h-6"/></div>
+                           <div>
+                               <h3 className="text-lg font-bold text-slate-900">Confirm Deletion</h3>
+                               <p className="text-sm text-slate-500 mt-1">This action cannot be undone.</p>
+                           </div>
                       </div>
                       <input 
                           type="password" 
-                          placeholder="Admin Password" 
+                          placeholder="Enter Admin Password" 
                           value={deletePassword} 
                           onChange={(e) => setDeletePassword(e.target.value)}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-center font-bold"
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-center font-bold outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
                           autoFocus
                       />
                       <div className="flex gap-3">
@@ -1735,26 +1745,28 @@ function App() {
         {/* Edit Name Modal */}
         {showEditNameModal && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
-                 <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-slide-up">
-                      <div className="flex flex-col items-center text-center gap-3 mb-4">
-                           <div className="p-3 bg-blue-100 text-blue-600 rounded-full"><Edit2 className="w-6 h-6"/></div>
-                           <h3 className="text-lg font-bold text-slate-900">Edit Party Name</h3>
-                           <p className="text-sm text-slate-500">Enter new name and admin password.</p>
+                 <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-slide-up border border-slate-100">
+                      <div className="flex flex-col items-center text-center gap-3 mb-6">
+                           <div className="p-4 bg-blue-50 text-blue-600 rounded-full border border-blue-100"><Edit2 className="w-6 h-6"/></div>
+                           <div>
+                               <h3 className="text-lg font-bold text-slate-900">Edit Party Name</h3>
+                               <p className="text-sm text-slate-500 mt-1">Update record details safely.</p>
+                           </div>
                       </div>
-                      <div className="space-y-3 mb-4">
+                      <div className="space-y-4 mb-6">
                           <input 
                               type="text" 
                               placeholder="New Party Name" 
                               value={newPartyName} 
                               onChange={(e) => setNewPartyName(e.target.value)}
-                              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-medium outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                           />
                           <input 
                               type="password" 
                               placeholder="Admin Password" 
                               value={editNamePassword} 
                               onChange={(e) => setEditNamePassword(e.target.value)}
-                              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-center"
+                              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-center outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                           />
                       </div>
                       <div className="flex gap-3">
@@ -1768,18 +1780,20 @@ function App() {
         {/* Export Password Modal */}
         {showExportModal && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
-                 <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-slide-up">
-                      <div className="flex flex-col items-center text-center gap-3 mb-4">
-                           <div className="p-3 bg-gold-100 text-gold-600 rounded-full"><Lock className="w-6 h-6"/></div>
-                           <h3 className="text-lg font-bold text-slate-900">Secure Export</h3>
-                           <p className="text-sm text-slate-500">Enter management password to download reports.</p>
+                 <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-slide-up border border-slate-100">
+                      <div className="flex flex-col items-center text-center gap-3 mb-6">
+                           <div className="p-4 bg-gold-50 text-gold-600 rounded-full border border-gold-100"><Lock className="w-6 h-6"/></div>
+                           <div>
+                               <h3 className="text-lg font-bold text-slate-900">Secure Export</h3>
+                               <p className="text-sm text-slate-500 mt-1">Management password required.</p>
+                           </div>
                       </div>
                       <input 
                           type="password" 
                           placeholder="Password" 
                           value={exportPassword} 
                           onChange={(e) => setExportPassword(e.target.value)}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-center font-bold"
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-center font-bold outline-none focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 transition-all"
                           autoFocus
                       />
                       <div className="flex gap-3">
@@ -1793,8 +1807,8 @@ function App() {
         {activeTab === 'dashboard' && <DashboardView />}
         {activeTab === 'invoices' && <InvoicesView />}
         {activeTab === 'inventory' && (
-             <div className="space-y-6 animate-enter">
-                <SectionHeader title="Inventory Management" subtitle="Track stock levels and valuations." action={<div className="flex gap-2 items-center"><ExportMenu onExport={(t) => initiateExport(handleInventoryExport, t)} />{renderDateFilter()}</div>}/>
+             <div className="space-y-8 animate-enter">
+                <SectionHeader title="Inventory Management" subtitle="Track stock levels and valuations." action={<div className="flex gap-3 items-center"><ExportMenu onExport={(t) => initiateExport(handleInventoryExport, t)} />{renderDateFilter()}</div>}/>
                 <InventoryTable batches={filteredInventory} />
              </div>
         )}

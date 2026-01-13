@@ -13,43 +13,46 @@ interface StatsCardProps {
 const StatsCard: React.FC<StatsCardProps> = ({ title, value, subValue, icon: Icon, delayIndex = 0, isActive = false }) => {
   return (
     <div 
-      className={`relative overflow-hidden rounded-2xl p-6 transition-all duration-500 hover:-translate-y-1 opacity-0 animate-slide-up
+      className={`relative overflow-hidden rounded-2xl p-6 transition-all duration-500 group animate-slide-up
         ${isActive 
-          ? 'bg-gradient-to-br from-slate-900 to-slate-800 text-white shadow-xl shadow-slate-900/20' 
-          : 'bg-white text-slate-900 shadow-card hover:shadow-glow border border-slate-100'
+          ? 'bg-slate-900 text-white shadow-xl shadow-slate-900/20 border border-slate-800' 
+          : 'bg-white text-slate-900 shadow-[0_2px_12px_-4px_rgba(6,81,237,0.08)] border border-slate-100 hover:border-gold-200/50 hover:shadow-lg'
         }`}
-      style={{ animationDelay: `${delayIndex * 100}ms` }}
+      style={{ animationDelay: `${delayIndex * 75}ms` }}
     >
       {/* Background Decor */}
-      {isActive && (
-        <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/10 rounded-full blur-3xl -mr-10 -mt-10 animate-pulse-slow"></div>
-      )}
-      {!isActive && (
-        <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 rounded-full blur-2xl -mr-8 -mt-8 pointer-events-none"></div>
+      {isActive ? (
+        <>
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/10 rounded-full blur-3xl -mr-10 -mt-10 animate-pulse-slow"></div>
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl -ml-8 -mb-8"></div>
+        </>
+      ) : (
+        <div className="absolute top-0 right-0 w-20 h-20 bg-slate-50/50 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none group-hover:bg-gold-50/50 transition-colors"></div>
       )}
       
       <div className="relative z-10 flex justify-between items-start">
-        <div>
-          <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${isActive ? 'text-gold-400' : 'text-slate-400'}`}>
+        <div className="flex flex-col">
+          <p className={`text-[11px] font-bold uppercase tracking-widest mb-3 ${isActive ? 'text-slate-400' : 'text-slate-400 group-hover:text-gold-600 transition-colors'}`}>
             {title}
           </p>
-          <h3 className={`text-3xl font-mono font-bold tracking-tight mb-1 ${isActive ? 'text-white' : 'text-slate-900'}`}>
+          <h3 className={`text-2xl lg:text-3xl font-mono font-bold tracking-tight leading-none mb-2 ${isActive ? 'text-white' : 'text-slate-900'}`}>
             {value}
           </h3>
           {subValue && (
-            <p className={`text-xs font-medium flex items-center gap-1 ${isActive ? 'text-slate-300' : 'text-slate-500'}`}>
+            <p className={`text-[11px] font-medium flex items-center gap-1.5 ${isActive ? 'text-slate-400' : 'text-slate-500'}`}>
+              {isActive && <span className="w-1 h-1 rounded-full bg-green-400 inline-block"></span>}
               {subValue}
             </p>
           )}
         </div>
 
         {Icon && (
-          <div className={`p-3 rounded-xl transition-transform duration-300 group-hover:scale-110 ${
+          <div className={`p-3 rounded-xl transition-all duration-300 ${
             isActive 
-              ? 'bg-white/10 text-gold-400 backdrop-blur-sm' 
-              : 'bg-slate-50 text-gold-600 border border-slate-100'
+              ? 'bg-white/10 text-gold-400 backdrop-blur-md' 
+              : 'bg-slate-50 text-slate-400 group-hover:text-gold-600 group-hover:bg-gold-50'
           }`}>
-            <Icon className="w-6 h-6" />
+            <Icon className="w-5 h-5" />
           </div>
         )}
       </div>
