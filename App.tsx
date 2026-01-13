@@ -17,7 +17,7 @@ import {
   ArrowUpRight, Scale, Coins, Trash2, TrendingUp, AlertTriangle, 
   FileSpreadsheet, FileText, Factory, Lock, ArrowRightLeft, LineChart as LineChartIcon, 
   Download, Users, ChevronRight, ChevronLeft, Crown, Briefcase, 
-  Timer, Activity, Wallet, FileDown, CheckCircle, CloudCog, RefreshCw, CloudUpload, Server, Database, Info, Edit2, Eye
+  Timer, Activity, Wallet, FileDown, CheckCircle, CloudCog, RefreshCw, CloudUpload, Server, Database, Info, Edit2, Eye, Loader2
 } from 'lucide-react';
 import { 
   AreaChart, Area, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Sector 
@@ -27,7 +27,7 @@ import {
 
 const Card: React.FC<{ children: React.ReactNode; className?: string; title?: React.ReactNode; action?: React.ReactNode, delay?: number }> = ({ children, className = '', title, action, delay = 0 }) => (
   <div 
-    className={`bg-white rounded-2xl border border-slate-100 shadow-card flex flex-col overflow-hidden animate-slide-up ${className}`}
+    className={`bg-white rounded-2xl border border-slate-100 shadow-card flex flex-col overflow-hidden animate-slide-up transition-colors duration-300 ${className}`}
     style={{ animationDelay: `${delay}ms` }}
   >
     {title && (
@@ -72,6 +72,17 @@ function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [dbError, setDbError] = useState(false); // Track DB connection/schema errors
   
+  // Theme State: Forced Light Mode
+  const isDarkMode = false; 
+
+  useEffect(() => {
+      // Ensure any existing dark mode preference is cleared
+      document.documentElement.classList.remove('dark');
+      localStorage.removeItem('theme');
+  }, []);
+
+  const toggleTheme = () => {}; // No-op
+
   // Working Mode State (Lifted Up)
   const [isWorkingMode, setIsWorkingMode] = useState(false);
 
@@ -715,6 +726,107 @@ function App() {
       }
   };
 
+  // --- FULL AUDIT HANDLER ---
+  const handleFullAuditExport = (type: 'CSV' | 'PDF') => {
+    if (type === 'CSV') {
+        // Fallback to transaction raw data for CSV
+        handleInvoicesExport('CSV');
+        return;
+    }
+
+    // Calculate Audit Metrics
+    const totalTurnover = invoices.filter(i => i.type === 'SALE').reduce((acc, i) => acc + i.taxableAmount, 0);
+    const totalGstCollected = invoices.filter(i => i.type === 'SALE').reduce((acc, i) => acc + i.gstAmount, 0);
+    const totalGstPaid = invoices.filter(i => i.type === 'PURCHASE').reduce((acc, i) => acc + i.gstAmount, 0);
+    const netGst = totalGstCollected - totalGstPaid;
+    
+    // PDF Generation
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Branding Header (Same as generatePDF)
+    const goldColor = [209, 151, 38];
+    const slateDark = [15, 23, 42];
+    
+    doc.setFillColor(slateDark[0], slateDark[1], slateDark[2]);
+    doc.rect(0, 0, pageWidth, 40, 'F');
+    doc.setTextColor(goldColor[0], goldColor[1], goldColor[2]);
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.text("BullionKeep AI", 14, 20);
+    doc.setTextColor(200, 200, 200);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text("Full Business Audit Report", 14, 28);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')}`, pageWidth - 14, 28, { align: 'right' });
+
+    let yPos = 50;
+
+    // Executive Summary Box
+    doc.setDrawColor(200, 200, 200);
+    doc.setFillColor(250, 250, 250);
+    doc.roundedRect(14, yPos, pageWidth - 28, 35, 2, 2, 'FD');
+    doc.setDrawColor(goldColor[0], goldColor[1], goldColor[2]);
+    doc.setLineWidth(1.5);
+    doc.line(14, yPos, 14, yPos + 35);
+    doc.setLineWidth(0.1);
+    
+    doc.setFontSize(14);
+    doc.setTextColor(50, 50, 50);
+    doc.text("Executive Summary", 20, yPos + 10);
+    
+    doc.setFontSize(10);
+    doc.text(`Current Stock: ${formatGrams(currentStock)}`, 20, yPos + 20);
+    doc.text(`Stock Value (FIFO): ${formatCurrency(fifoValue)}`, 20, yPos + 28);
+    
+    doc.text(`Total Turnover: ${formatCurrency(totalTurnover)}`, 100, yPos + 20);
+    doc.text(`Net Profit: ${formatCurrency(totalProfit)}`, 100, yPos + 28);
+
+    yPos += 45;
+
+    // Table 1: Inventory Aging
+    doc.setFontSize(12);
+    doc.setTextColor(slateDark[0], slateDark[1], slateDark[2]);
+    doc.text("Risk & Aging Analysis", 14, yPos);
+    yPos += 5;
+    
+    autoTable(doc, {
+        startY: yPos,
+        head: [['Aging Bucket', 'Quantity (g)', 'Status']],
+        body: Object.entries(agingStats.buckets).map(([bucket, qty]) => [
+            `${bucket} Days`, 
+            formatGrams(qty), 
+            bucket === '30+' && qty > 0 ? 'CRITICAL' : 'Normal'
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: slateDark as [number, number, number] }
+    });
+    
+    // @ts-ignore
+    yPos = doc.lastAutoTable.finalY + 15;
+
+    // Table 2: Tax Summary
+    doc.text("Taxation Summary", 14, yPos);
+    yPos += 5;
+    
+    autoTable(doc, {
+        startY: yPos,
+        head: [['Category', 'Amount']],
+        body: [
+            ['GST Collected (Sales)', formatCurrency(totalGstCollected)],
+            ['GST Paid (Purchases)', formatCurrency(totalGstPaid)],
+            ['Net GST Payable', formatCurrency(netGst)]
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: slateDark as [number, number, number] }
+    });
+
+    const fileName = `full_audit_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+    addToast('SUCCESS', 'Full Audit Report downloaded.');
+  };
+
   const handleInvoicesExport = (type: 'CSV' | 'PDF') => {
        const data = [...filteredInvoices].sort((a,b) => b.date.localeCompare(a.date));
        if (type === 'CSV') {
@@ -794,7 +906,7 @@ function App() {
                                )}
                           </Card>
                           <Card title="Recent Activity" delay={5}>
-                               <div className="space-y-3">{invoices.slice(0, 5).map(inv => (<div key={inv.id} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors border border-slate-50"><div className="flex items-center gap-3"><div className={`p-2 rounded-lg ${inv.type === 'PURCHASE' ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'}`}>{inv.type === 'PURCHASE' ? <ArrowRightLeft className="w-4 h-4"/> : <Coins className="w-4 h-4"/>}</div><div><p className="font-bold text-slate-900 text-sm">{inv.partyName}</p><p className="text-xs text-slate-500">{new Date(inv.date).toLocaleDateString()}</p></div></div><div className="text-right"><p className="font-mono font-bold text-sm">{formatGrams(inv.quantityGrams)}</p><p className="text-xs text-slate-500">{formatCurrency(inv.totalAmount)}</p></div></div>))}</div>
+                               <div className="space-y-3">{invoices.slice(0, 5).map(inv => (<div key={inv.id} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors border border-slate-50"><div className="flex items-center gap-3"><div className={`p-2 rounded-lg ${inv.type === 'PURCHASE' ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'}`}>{inv.type === 'PURCHASE' ? <ArrowRightLeft className="w-4 h-4"/> : <Coins className="w-4 h-4"/>}</div><div><p className="font-bold text-slate-900 text-sm">{inv.partyName}</p><p className="text-xs text-slate-500">{new Date(inv.date).toLocaleDateString()}</p></div></div><div className="text-right"><p className="font-mono font-bold text-sm text-slate-900">{formatGrams(inv.quantityGrams)}</p><p className="text-xs text-slate-500">{formatCurrency(inv.totalAmount)}</p></div></div>))}</div>
                           </Card>
                      </div>
                      <div className="space-y-6">
@@ -896,7 +1008,7 @@ function App() {
 
     return (
         <div className="space-y-8 animate-enter">
-            <SectionHeader title="Customer Intelligence" subtitle="Analyze purchasing patterns and profitability." action={<div className="flex gap-2 items-center"><ExportMenu onExport={(t) => initiateExport(handleCustomerExport, t)} />{renderDateFilter()}</div>}/>
+            <SectionHeader title="Customer Intelligence" subtitle="Analyze purchasing patterns and profitability." action={<div className="flex gap-2 items-center"><ExportMenu onExport={(t) => initiateExport(handleSingleCustomerExport, t)} />{renderDateFilter()}</div>}/>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">{customerData.slice(0, 3).map((c, i) => (<div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-card flex flex-col gap-4 relative overflow-hidden group hover:shadow-lg transition-all"><div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-purple-500/10 to-transparent rounded-full -mr-8 -mt-8 group-hover:scale-110 transition-transform"></div><div className="flex justify-between items-start z-10"><div><h3 className="font-bold text-lg text-slate-900 truncate max-w-[150px]">{c.name}</h3><p className="text-xs text-purple-600 font-bold bg-purple-50 px-2 py-1 rounded-md inline-block mt-1">{c.behaviorPattern}</p></div><div className="p-2 bg-slate-50 rounded-lg text-slate-400"><Users className="w-5 h-5"/></div></div><div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4 z-10"><div><p className="text-[10px] uppercase text-slate-400 font-bold">Total Grams</p><p className="font-mono font-bold text-slate-700">{formatGrams(c.totalGrams)}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Total Revenue</p><p className="font-mono font-bold text-slate-700">{formatCurrency(c.totalSpend)}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Tx Count</p><p className="font-mono font-bold text-slate-700">{c.txCount}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Avg Price/g</p><p className="font-mono font-bold text-slate-700">{formatCurrency(c.avgSellingPrice || 0)}</p></div></div></div>))}</div>
             <Card title="Top 10 Customer Rankings (By Volume)">
                 <div className="overflow-x-auto">
@@ -928,7 +1040,7 @@ function App() {
                                     </td>
                                     <td className="px-4 py-3 text-center text-slate-500">{c.txCount}</td>
                                     <td className="px-4 py-3 text-right font-mono font-bold text-slate-900">{formatGrams(c.totalGrams)}</td>
-                                    <td className="px-4 py-3 text-right font-mono">{formatCurrency(c.totalSpend)}</td>
+                                    <td className="px-4 py-3 text-right font-mono text-slate-700">{formatCurrency(c.totalSpend)}</td>
                                     <td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(c.avgSellingPrice || 0)}</td>
                                     <td className="px-4 py-3 text-right font-mono font-bold text-green-600">{formatCurrency(c.profitContribution)}</td>
                                 </tr>
@@ -1035,7 +1147,7 @@ function App() {
                                         return (
                                             <tr key={sale.id} className="hover:bg-slate-50 border-b border-slate-50">
                                                 <td className="px-4 py-3 text-slate-500 font-mono text-xs">{sale.date}</td>
-                                                <td className="px-4 py-3 text-right font-mono">{formatGrams(sale.quantityGrams)}</td>
+                                                <td className="px-4 py-3 text-right font-mono text-slate-700">{formatGrams(sale.quantityGrams)}</td>
                                                 <td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(sale.ratePerGram)}</td>
                                                 <td className="px-4 py-3 text-right font-mono text-slate-700">{formatCurrency(sale.taxableAmount)}</td>
                                                 <td className={`px-4 py-3 text-right font-mono font-bold ${(sale.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -1060,11 +1172,103 @@ function App() {
   }
 
   const SupplierInsightsView = () => {
+    // Colors for Supplier Pie Chart (Blue/Indigo Spectrum)
+    const SUPPLIER_COLORS = ['#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#818cf8', '#c084fc', '#e879f9', '#2dd4bf'];
+
+    const supplierPieData = useMemo(() => {
+        return supplierData.map(s => ({
+            name: s.name,
+            value: s.totalGramsPurchased
+        })).sort((a,b) => b.value - a.value);
+    }, [supplierData]);
+
     return (
         <div className="space-y-8 animate-enter">
             <SectionHeader title="Supplier Insights" subtitle="Track supplier performance and rate volatility." action={<div className="flex gap-2 items-center"><ExportMenu onExport={(t) => initiateExport(handleSupplierExport, t)} />{renderDateFilter()}</div>}/>
+            
+            {/* Top 3 Supplier Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">{supplierData.slice(0, 3).map((s, i) => (<div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-card flex flex-col gap-4 relative overflow-hidden group hover:shadow-lg transition-all"><div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-500/10 to-transparent rounded-full -mr-8 -mt-8 group-hover:scale-110 transition-transform"></div><div className="flex justify-between items-start z-10"><div><h3 className="font-bold text-lg text-slate-900 truncate max-w-[150px]">{s.name}</h3><p className="text-xs text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded-md inline-block mt-1">{s.volatility > 50 ? 'High Volatility' : 'Stable'}</p></div><div className="p-2 bg-slate-50 rounded-lg text-slate-400"><Factory className="w-5 h-5"/></div></div><div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4 z-10"><div><p className="text-[10px] uppercase text-slate-400 font-bold">Total Bought</p><p className="font-mono font-bold text-slate-700">{formatGrams(s.totalGramsPurchased)}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Avg Rate</p><p className="font-mono font-bold text-slate-700">{formatCurrency(s.avgRate)}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Tx Count</p><p className="font-mono font-bold text-slate-700">{s.txCount}</p></div><div><p className="text-[10px] uppercase text-slate-400 font-bold">Volatility</p><p className="font-mono font-bold text-slate-700">{formatCurrency(s.volatility)}</p></div></div></div>))}</div>
-            <Card title="Detailed Supplier Ledger"><div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="text-slate-500 bg-slate-50/50"><tr><th className="px-4 py-3">Supplier</th><th className="px-4 py-3 text-center">Tx Count</th><th className="px-4 py-3 text-right">Volume (g)</th><th className="px-4 py-3 text-right">Avg Rate</th><th className="px-4 py-3 text-right">Min Rate</th><th className="px-4 py-3 text-right">Max Rate</th><th className="px-4 py-3 text-right">Volatility</th></tr></thead><tbody>{supplierData.map((s, i) => (<tr key={i} className="hover:bg-slate-50 border-b border-slate-50"><td className="px-4 py-3 font-bold text-slate-800">{s.name}</td><td className="px-4 py-3 text-center text-slate-500">{s.txCount}</td><td className="px-4 py-3 text-right font-mono">{formatGrams(s.totalGramsPurchased)}</td><td className="px-4 py-3 text-right font-mono text-blue-600">{formatCurrency(s.avgRate)}</td><td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(s.minRate)}</td><td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(s.maxRate)}</td><td className="px-4 py-3 text-right font-mono font-bold text-slate-700">{formatCurrency(s.volatility)}</td></tr>))}</tbody></table></div></Card>
+            
+            {/* Chart + Table Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Dependency Pie Chart */}
+                <Card title="Supplier Dependency Ratio" className="lg:col-span-1 min-h-[400px]">
+                    <div className="h-[350px] w-full flex items-center justify-center">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={supplierPieData}
+                                    dataKey="value"
+                                    nameKey="name"
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    stroke="none"
+                                >
+                                    {supplierPieData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={SUPPLIER_COLORS[index % SUPPLIER_COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip 
+                                    content={({ active, payload }) => {
+                                        if (active && payload && payload.length) {
+                                            const data = payload[0].payload;
+                                            return (
+                                                <div className="bg-white/95 backdrop-blur-md p-3 border border-blue-100 shadow-xl rounded-xl">
+                                                    <p className="text-xs font-bold text-slate-500 mb-1">{data.name}</p>
+                                                    <p className="text-sm font-mono font-bold text-blue-600">{formatGrams(data.value)}</p>
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    }}
+                                />
+                                <Legend 
+                                    layout="horizontal" 
+                                    verticalAlign="bottom" 
+                                    align="center"
+                                    wrapperStyle={{ fontSize: '10px', paddingTop: '20px' }}
+                                />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+
+                {/* Detailed Table */}
+                <div className="lg:col-span-2">
+                    <Card title="Detailed Supplier Ledger" className="h-full">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="text-slate-500 bg-slate-50/50">
+                                    <tr>
+                                        <th className="px-4 py-3">Supplier</th>
+                                        <th className="px-4 py-3 text-center">Tx Count</th>
+                                        <th className="px-4 py-3 text-right">Volume (g)</th>
+                                        <th className="px-4 py-3 text-right">Avg Rate</th>
+                                        <th className="px-4 py-3 text-right">Min Rate</th>
+                                        <th className="px-4 py-3 text-right">Max Rate</th>
+                                        <th className="px-4 py-3 text-right">Volatility</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {supplierData.map((s, i) => (
+                                        <tr key={i} className="hover:bg-slate-50 border-b border-slate-50">
+                                            <td className="px-4 py-3 font-bold text-slate-800">{s.name}</td>
+                                            <td className="px-4 py-3 text-center text-slate-500">{s.txCount}</td>
+                                            <td className="px-4 py-3 text-right font-mono text-slate-700">{formatGrams(s.totalGramsPurchased)}</td>
+                                            <td className="px-4 py-3 text-right font-mono text-blue-600">{formatCurrency(s.avgRate)}</td>
+                                            <td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(s.minRate)}</td>
+                                            <td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(s.maxRate)}</td>
+                                            <td className="px-4 py-3 text-right font-mono font-bold text-slate-700">{formatCurrency(s.volatility)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
+                </div>
+            </div>
         </div>
     );
   }
@@ -1094,24 +1298,24 @@ function App() {
                     <div className="h-full w-full">
                         <ResponsiveContainer>
                             <LineChart data={priceMetrics.trendData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? "#334155" : "#e2e8f0"} />
                                 <XAxis 
                                     dataKey="date" 
                                     axisLine={{ stroke: '#cbd5e1' }} 
                                     tickLine={false} 
-                                    tick={{fill: '#64748b', fontSize: 11, fontWeight: 500}} 
+                                    tick={{fill: isDarkMode ? '#94a3b8' : '#64748b', fontSize: 11, fontWeight: 500}} 
                                     dy={10}
                                 />
                                 <YAxis 
                                     domain={['auto', 'auto']} 
                                     axisLine={false} 
                                     tickLine={false} 
-                                    tick={{fill: '#64748b', fontSize: 11}} 
+                                    tick={{fill: isDarkMode ? '#94a3b8' : '#64748b', fontSize: 11}} 
                                     tickFormatter={(v) => `₹${v}`} 
                                 />
                                 <Tooltip 
                                     cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '4 4' }}
-                                    contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} 
+                                    contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', backgroundColor: isDarkMode ? '#1e293b' : '#fff', color: isDarkMode ? '#fff' : '#000' }} 
                                     formatter={(val:number) => [formatCurrency(val), 'Avg Sell Price']}
                                 />
                                 <Line 
@@ -1126,9 +1330,9 @@ function App() {
                         </ResponsiveContainer>
                     </div>
                  </Card>
-                 <Card title="Supplier Cost Consistency" delay={200} className="min-h-[400px]"><div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="text-slate-500 bg-slate-50/50"><tr><th className="px-4 py-3">Supplier</th><th className="px-4 py-3 text-right">Avg Rate</th><th className="px-4 py-3 text-right">Min Rate</th><th className="px-4 py-3 text-right">Max Rate</th><th className="px-4 py-3 text-right">Volatility (Spread)</th></tr></thead><tbody>{supplierData.map((s, i) => (<tr key={i} className="hover:bg-slate-50 border-b border-slate-50"><td className="px-4 py-3 font-medium">{s.name}</td><td className="px-4 py-3 text-right font-mono text-blue-600">{formatCurrency(s.avgRate)}</td><td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(s.minRate)}</td><td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(s.maxRate)}</td><td className="px-4 py-3 text-right font-mono font-bold text-slate-700">{formatCurrency(s.volatility)}</td></tr>))}</tbody></table></div></Card>
+                 <Card title="Supplier Cost Consistency" delay={200} className="min-h-[400px]"><div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="text-slate-500 bg-slate-50/50"><tr><th className="px-4 py-3">Supplier</th><th className="px-4 py-3 text-right">Avg Rate</th><th className="px-4 py-3 text-right">Min Rate</th><th className="px-4 py-3 text-right">Max Rate</th><th className="px-4 py-3 text-right">Volatility (Spread)</th></tr></thead><tbody>{supplierData.map((s, i) => (<tr key={i} className="hover:bg-slate-50 border-b border-slate-50"><td className="px-4 py-3 font-medium text-slate-900">{s.name}</td><td className="px-4 py-3 text-right font-mono text-blue-600">{formatCurrency(s.avgRate)}</td><td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(s.minRate)}</td><td className="px-4 py-3 text-right font-mono text-slate-500">{formatCurrency(s.maxRate)}</td><td className="px-4 py-3 text-right font-mono font-bold text-slate-700">{formatCurrency(s.volatility)}</td></tr>))}</tbody></table></div></Card>
              </div>
-             <Card title="Detailed Purchase Transactions" delay={300}><div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="text-slate-500 bg-slate-50/50"><tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Supplier</th><th className="px-4 py-3 text-right">Qty (g)</th><th className="px-4 py-3 text-right">Purchase Rate (₹/g)</th><th className="px-4 py-3 text-right">Taxable (Ex-Tax)</th></tr></thead><tbody>{priceMetrics.purchases.length === 0 ? (<tr><td colSpan={5} className="text-center py-8 text-slate-400">No purchases in this period.</td></tr>) : priceMetrics.purchases.sort((a,b) => b.date.localeCompare(a.date)).map(inv => (<tr key={inv.id} className="hover:bg-slate-50 border-b border-slate-50"><td className="px-4 py-3 text-slate-500">{inv.date}</td><td className="px-4 py-3 font-medium">{inv.partyName}</td><td className="px-4 py-3 text-right font-mono">{formatGrams(inv.quantityGrams)}</td><td className="px-4 py-3 text-right font-mono text-blue-600">{formatCurrency(inv.ratePerGram)}</td><td className="px-4 py-3 text-right font-mono">{formatCurrency(inv.taxableAmount)}</td></tr>))}</tbody></table></div></Card>
+             <Card title="Detailed Purchase Transactions" delay={300}><div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="text-slate-500 bg-slate-50/50"><tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Supplier</th><th className="px-4 py-3 text-right">Qty (g)</th><th className="px-4 py-3 text-right">Purchase Rate (₹/g)</th><th className="px-4 py-3 text-right">Taxable (Ex-Tax)</th></tr></thead><tbody>{priceMetrics.purchases.length === 0 ? (<tr><td colSpan={5} className="text-center py-8 text-slate-400">No purchases in this period.</td></tr>) : priceMetrics.purchases.sort((a,b) => b.date.localeCompare(a.date)).map(inv => (<tr key={inv.id} className="hover:bg-slate-50 border-b border-slate-50"><td className="px-4 py-3 text-slate-500">{inv.date}</td><td className="px-4 py-3 font-medium text-slate-900">{inv.partyName}</td><td className="px-4 py-3 text-right font-mono text-slate-700">{formatGrams(inv.quantityGrams)}</td><td className="px-4 py-3 text-right font-mono text-blue-600">{formatCurrency(inv.ratePerGram)}</td><td className="px-4 py-3 text-right font-mono text-slate-700">{formatCurrency(inv.taxableAmount)}</td></tr>))}</tbody></table></div></Card>
         </div>
       );
   }
@@ -1164,10 +1368,55 @@ function App() {
       <div className="space-y-8"><SectionHeader title="Analytics & Reports" subtitle="Deep dive into your business performance." action={<div className="flex gap-2 items-center"><ExportMenu onExport={(t) => initiateExport((type) => addToast('SUCCESS', 'For detailed exports, use specific sections or Generate PDF below.'), t)} />{renderDateFilter()}</div>}/>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"><StatsCard title="Inventory Turnover" value={`${turnoverStats.turnoverRatio.toFixed(2)}x`} subValue="Ratio (COGS / Avg Inv)" icon={Activity} isActive /><StatsCard title="Avg Days to Sell" value={`${Math.round(turnoverStats.avgDaysToSell)} Days`} subValue="Velocity" icon={Timer} /><StatsCard title="Realized Profit" value={formatCurrency(realizedProfit)} subValue="From Sales" icon={Wallet} /><div className="bg-slate-900 rounded-2xl p-6 text-white relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 right-0 w-24 h-24 bg-gold-500/20 rounded-full blur-3xl -mr-8 -mt-8"></div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Unrealized Profit (Est)</p><div className="flex items-end gap-2 mb-2"><input type="number" placeholder="Mkt Rate..." value={marketRate} onChange={(e) => setMarketRate(e.target.value)} className="w-24 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white focus:border-gold-500 outline-none"/></div><h3 className={`text-2xl font-mono font-bold ${unrealizedProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{hasRate ? formatCurrency(unrealizedProfit) : '---'}</h3></div></div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">{[{ id: 'CUSTOMER', title: 'Customer Report', icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },{ id: 'SUPPLIER', title: 'Supplier Report', icon: Factory, color: 'text-blue-600', bg: 'bg-blue-50' },{ id: 'CONSOLIDATED', title: 'Full Audit', icon: FileText, color: 'text-gold-600', bg: 'bg-gold-50' }].map((rpt, i) => (<div key={rpt.id} onClick={() => {}} className="group bg-white p-6 rounded-2xl border border-slate-100 shadow-card hover:shadow-lg transition-all cursor-pointer flex items-center gap-5 animate-slide-up" style={{ animationDelay: `${i*100}ms` }}><div className={`p-4 rounded-xl ${rpt.bg} ${rpt.color} group-hover:scale-110 transition-transform`}><rpt.icon className="w-6 h-6"/></div><div><h3 className="font-bold text-slate-900 text-lg">{rpt.title}</h3><p className="text-slate-400 text-sm mt-0.5">Generate PDF</p></div><div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0"><Download className="w-5 h-5 text-slate-300"/></div></div>))}</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+            {[
+                { 
+                    id: 'CUSTOMER', 
+                    title: 'Customer Report', 
+                    icon: Users, 
+                    color: 'text-purple-600', 
+                    bg: 'bg-purple-50',
+                    handler: () => initiateExport(handleCustomerExport, 'PDF')
+                },
+                { 
+                    id: 'SUPPLIER', 
+                    title: 'Supplier Report', 
+                    icon: Factory, 
+                    color: 'text-blue-600', 
+                    bg: 'bg-blue-50',
+                    handler: () => initiateExport(handleSupplierExport, 'PDF')
+                },
+                { 
+                    id: 'CONSOLIDATED', 
+                    title: 'Full Audit', 
+                    icon: FileText, 
+                    color: 'text-gold-600', 
+                    bg: 'bg-gold-50',
+                    handler: () => initiateExport(handleFullAuditExport, 'PDF')
+                }
+            ].map((rpt, i) => (
+                <div 
+                    key={rpt.id} 
+                    onClick={rpt.handler} 
+                    className="group bg-white p-6 rounded-2xl border border-slate-100 shadow-card hover:shadow-lg transition-all cursor-pointer flex items-center gap-5 animate-slide-up" 
+                    style={{ animationDelay: `${i*100}ms` }}
+                >
+                    <div className={`p-4 rounded-xl ${rpt.bg} ${rpt.color} group-hover:scale-110 transition-transform`}>
+                        <rpt.icon className="w-6 h-6"/>
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-slate-900 text-lg">{rpt.title}</h3>
+                        <p className="text-slate-400 text-sm mt-0.5">Generate PDF</p>
+                    </div>
+                    <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0">
+                        <Download className="w-5 h-5 text-slate-300"/>
+                    </div>
+                </div>
+            ))}
+        </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <Card title="Profit Trend" className="lg:col-span-2" delay={300}><div className="h-64 md:h-80 w-full"><ResponsiveContainer><AreaChart data={profitTrendData}><defs><linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/><XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, dy: 10}}/><YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} tickFormatter={(v) => `${v/1000}k`}/><Tooltip contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}} formatter={(value: number) => [formatCurrency(value), 'Net Profit']}/><Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" /></AreaChart></ResponsiveContainer></div></Card>
+          <Card title="Profit Trend" className="lg:col-span-2" delay={300}><div className="h-64 md:h-80 w-full"><ResponsiveContainer><AreaChart data={profitTrendData}><defs><linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? "#334155" : "#f1f5f9"}/><XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: isDarkMode ? '#94a3b8' : '#94a3b8', fontSize: 10, dy: 10}}/><YAxis axisLine={false} tickLine={false} tick={{fill: isDarkMode ? '#94a3b8' : '#94a3b8', fontSize: 10}} tickFormatter={(v) => `${v/1000}k`}/><Tooltip contentStyle={{backgroundColor: isDarkMode ? '#1e293b' : '#fff', borderRadius: '12px', border: 'none', color: isDarkMode ? '#fff' : '#000', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}} formatter={(value: number) => [formatCurrency(value), 'Net Profit']}/><Area type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorProfit)" /></AreaChart></ResponsiveContainer></div></Card>
           
           <Card title="Customer Volume Share" className="lg:col-span-1 min-h-[400px]" delay={400}>
                 <div className="h-[350px] w-full flex items-center justify-center">
@@ -1450,138 +1699,110 @@ function App() {
     >
         <Toast toasts={toasts} removeToast={removeToast} />
         
-        {/* Sync Indicator Overlay */}
+        {/* Sync Indicator */}
         {isSyncing && (
-           <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2 rounded-full shadow-xl z-50 flex items-center gap-2 text-sm animate-slide-up">
-              <RefreshCw className="w-4 h-4 animate-spin"/>
-              Syncing Cloud Data...
-           </div>
+             <div className="fixed bottom-6 left-6 z-50 bg-slate-900 text-white px-4 py-2 rounded-xl flex items-center gap-3 shadow-xl animate-slide-up">
+                 <Loader2 className="w-4 h-4 animate-spin text-gold-500" />
+                 <span className="text-xs font-bold">Syncing data...</span>
+             </div>
         )}
 
-        {/* Delete Modal */}
+        {/* Delete Confirmation Modal */}
         {showDeleteModal && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-                <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-slate-200 animate-slide-up">
-                    <div className="flex flex-col items-center text-center gap-3 mb-6">
-                        <div className="w-12 h-12 rounded-full bg-red-50 text-red-500 flex items-center justify-center">
-                            <Lock className="w-6 h-6"/>
-                        </div>
-                        <div>
-                             <h3 className="text-lg font-bold text-slate-900">Secure Deletion</h3>
-                             <p className="text-xs text-slate-500 mt-1">Enter admin password to permanently delete this record.</p>
-                        </div>
-                    </div>
-                    <input 
-                        type="password" 
-                        placeholder="Admin Password" 
-                        value={deletePassword}
-                        onChange={(e) => setDeletePassword(e.target.value)}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-center mb-4 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
-                    />
-                    <div className="flex gap-3">
-                        <button onClick={() => { setShowDeleteModal(false); setDeletePassword(''); }} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-colors text-sm">Cancel</button>
-                        <button onClick={confirmDelete} className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-600/20 text-sm">Delete Record</button>
-                    </div>
-                </div>
-            </div>
-        )}
-
-        {/* Export Password Modal */}
-        {showExportModal && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-                <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-slate-200 animate-slide-up">
-                    <div className="flex flex-col items-center text-center gap-3 mb-6">
-                        <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
-                            <Download className="w-6 h-6"/>
-                        </div>
-                        <div>
-                                <h3 className="text-lg font-bold text-slate-900">Secure Export</h3>
-                                <p className="text-xs text-slate-500 mt-1">Protected Action. Enter password to export data.</p>
-                        </div>
-                    </div>
-                    <input 
-                        type="password" 
-                        placeholder="Export Password" 
-                        value={exportPassword}
-                        onChange={(e) => setExportPassword(e.target.value)}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-center mb-4 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                    />
-                    <div className="flex gap-3">
-                        <button onClick={() => { setShowExportModal(false); setExportPassword(''); setPendingExport(null); }} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-colors text-sm">Cancel</button>
-                        <button onClick={confirmExport} className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-lg shadow-slate-900/20 text-sm">Export Data</button>
-                    </div>
-                </div>
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+                 <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-slide-up">
+                      <div className="flex flex-col items-center text-center gap-3 mb-4">
+                           <div className="p-3 bg-red-100 text-red-600 rounded-full"><Trash2 className="w-6 h-6"/></div>
+                           <h3 className="text-lg font-bold text-slate-900">Confirm Deletion</h3>
+                           <p className="text-sm text-slate-500">This action is irreversible. Enter admin password to confirm.</p>
+                      </div>
+                      <input 
+                          type="password" 
+                          placeholder="Admin Password" 
+                          value={deletePassword} 
+                          onChange={(e) => setDeletePassword(e.target.value)}
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-center font-bold"
+                          autoFocus
+                      />
+                      <div className="flex gap-3">
+                          <button onClick={() => setShowDeleteModal(false)} className="flex-1 py-3 text-slate-600 font-bold hover:bg-slate-50 rounded-xl transition-colors">Cancel</button>
+                          <button onClick={confirmDelete} className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-500/20">Delete</button>
+                      </div>
+                 </div>
             </div>
         )}
 
         {/* Edit Name Modal */}
         {showEditNameModal && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-                <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-slate-200 animate-slide-up">
-                    <div className="flex flex-col items-center text-center gap-3 mb-6">
-                        <div className="w-12 h-12 rounded-full bg-gold-50 text-gold-500 flex items-center justify-center">
-                            <Edit2 className="w-6 h-6"/>
-                        </div>
-                        <div>
-                             <h3 className="text-lg font-bold text-slate-900">Edit Party Name</h3>
-                             <p className="text-xs text-slate-500 mt-1">Authenticate to update record details.</p>
-                        </div>
-                    </div>
-                    
-                    <div className="space-y-4 mb-4">
-                        <div>
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block text-left">New Name</label>
-                            <input 
-                                type="text" 
-                                placeholder="Enter Correct Name" 
-                                value={newPartyName}
-                                onChange={(e) => setNewPartyName(e.target.value)}
-                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block text-left">Admin Password</label>
-                            <input 
-                                type="password" 
-                                placeholder="Enter Password" 
-                                value={editNamePassword}
-                                onChange={(e) => setEditNamePassword(e.target.value)}
-                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-center focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex gap-3">
-                        <button onClick={() => { setShowEditNameModal(false); setEditNamePassword(''); }} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-colors text-sm">Cancel</button>
-                        <button onClick={confirmNameUpdate} className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-lg shadow-slate-900/20 text-sm">Update Name</button>
-                    </div>
-                </div>
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+                 <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-slide-up">
+                      <div className="flex flex-col items-center text-center gap-3 mb-4">
+                           <div className="p-3 bg-blue-100 text-blue-600 rounded-full"><Edit2 className="w-6 h-6"/></div>
+                           <h3 className="text-lg font-bold text-slate-900">Edit Party Name</h3>
+                           <p className="text-sm text-slate-500">Enter new name and admin password.</p>
+                      </div>
+                      <div className="space-y-3 mb-4">
+                          <input 
+                              type="text" 
+                              placeholder="New Party Name" 
+                              value={newPartyName} 
+                              onChange={(e) => setNewPartyName(e.target.value)}
+                              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                          />
+                          <input 
+                              type="password" 
+                              placeholder="Admin Password" 
+                              value={editNamePassword} 
+                              onChange={(e) => setEditNamePassword(e.target.value)}
+                              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-center"
+                          />
+                      </div>
+                      <div className="flex gap-3">
+                          <button onClick={() => setShowEditNameModal(false)} className="flex-1 py-3 text-slate-600 font-bold hover:bg-slate-50 rounded-xl transition-colors">Cancel</button>
+                          <button onClick={confirmNameUpdate} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20">Update</button>
+                      </div>
+                 </div>
             </div>
         )}
 
-        <div className="min-h-full pb-10">
-            {activeTab === 'dashboard' && <DashboardView />}
-            {activeTab === 'invoices' && <InvoicesView />}
-            {activeTab === 'inventory' && (
-                <div className="animate-slide-up">
-                    <SectionHeader 
-                        title="Inventory Management" 
-                        action={
-                            <div className="flex gap-2 items-center">
-                                <ExportMenu onExport={(t) => initiateExport(handleInventoryExport, t)} />
-                                {renderDateFilter()}
-                            </div>
-                        }
-                    />
-                    <InventoryTable batches={filteredInventory}/>
-                </div>
-            )}
-            {activeTab === 'analytics' && <AnalyticsView />}
-            {activeTab === 'price-analysis' && <PriceAnalysisView />}
-            {activeTab === 'customer-insights' && <CustomerInsightsView />}
-            {activeTab === 'supplier-insights' && <SupplierInsightsView />}
-            {activeTab === 'business-ledger' && <BusinessLedgerView />}
-        </div>
+        {/* Export Password Modal */}
+        {showExportModal && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+                 <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-slide-up">
+                      <div className="flex flex-col items-center text-center gap-3 mb-4">
+                           <div className="p-3 bg-gold-100 text-gold-600 rounded-full"><Lock className="w-6 h-6"/></div>
+                           <h3 className="text-lg font-bold text-slate-900">Secure Export</h3>
+                           <p className="text-sm text-slate-500">Enter management password to download reports.</p>
+                      </div>
+                      <input 
+                          type="password" 
+                          placeholder="Password" 
+                          value={exportPassword} 
+                          onChange={(e) => setExportPassword(e.target.value)}
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-center font-bold"
+                          autoFocus
+                      />
+                      <div className="flex gap-3">
+                          <button onClick={() => { setShowExportModal(false); setPendingExport(null); }} className="flex-1 py-3 text-slate-600 font-bold hover:bg-slate-50 rounded-xl transition-colors">Cancel</button>
+                          <button onClick={confirmExport} className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-lg">Verify</button>
+                      </div>
+                 </div>
+            </div>
+        )}
+
+        {activeTab === 'dashboard' && <DashboardView />}
+        {activeTab === 'invoices' && <InvoicesView />}
+        {activeTab === 'inventory' && (
+             <div className="space-y-6 animate-enter">
+                <SectionHeader title="Inventory Management" subtitle="Track stock levels and valuations." action={<div className="flex gap-2 items-center"><ExportMenu onExport={(t) => initiateExport(handleInventoryExport, t)} />{renderDateFilter()}</div>}/>
+                <InventoryTable batches={filteredInventory} />
+             </div>
+        )}
+        {activeTab === 'analytics' && <AnalyticsView />}
+        {activeTab === 'customer-insights' && <CustomerInsightsView />}
+        {activeTab === 'supplier-insights' && <SupplierInsightsView />}
+        {activeTab === 'business-ledger' && <BusinessLedgerView />}
+        {activeTab === 'price-analysis' && <PriceAnalysisView />}
     </Layout>
   );
 }
